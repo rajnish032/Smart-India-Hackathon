@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useEffect, useState, Suspense } from 'react';
+import React, { useEffect, useState, useCallback, Suspense } from 'react';
 import { useSearchParams } from 'next/navigation';
 import ProtectedRoute from '../../components/auth/ProtectedRoute';
 import RoleGuard from '../../components/auth/RoleGuard';
@@ -37,21 +37,37 @@ function LearnerDashboardInner() {
   const tabConfig = TAB_CONFIG[tab] || TAB_CONFIG.overview;
   const isOverview = tab === 'overview' || !TAB_CONFIG[tab];
 
+  const fetchHubData = useCallback(async () => {
+    try {
+      setLoading(true);
+      const res = await apiFetch('/learner/dashboard');
+      if (res?.success) setHubData(res.data);
+    } catch (err) {
+      console.warn('Could not fetch learner hub data, using mock data:', err);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
+
   useEffect(() => {
     if (!isOverview) return;
-    setLoading(true);
-    async function fetchHubData() {
-      try {
-        const res = await apiFetch('/learner/dashboard');
-        if (res?.success) setHubData(res.data);
-      } catch (err) {
-        console.warn('Could not fetch learner hub data, using mock data:', err);
-      } finally {
-        setLoading(false);
-      }
-    }
     fetchHubData();
-  }, [isOverview]);
+
+    const handleStorage = (e) => {
+      if (e.key === 'learner_activity_sync') {
+        fetchHubData();
+      }
+    };
+
+    window.addEventListener('focus', fetchHubData);
+    window.addEventListener('learner:activity-updated', fetchHubData);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('focus', fetchHubData);
+      window.removeEventListener('learner:activity-updated', fetchHubData);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [isOverview, fetchHubData]);
 
   const TabComponent = tabConfig.component;
 

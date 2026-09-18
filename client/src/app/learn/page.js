@@ -27,8 +27,8 @@ const COURSES = [
     modules: 5,
     lessons: 24,
     instructor: 'Dr. Anjali Singh',
-    progress: 100,
-    enrolled: true,
+    progress: 0,
+    enrolled: false,
     studentsEnrolled: 3420,
     category: 'Foundations',
     rating: 4.9,
@@ -42,8 +42,8 @@ const COURSES = [
     modules: 6,
     lessons: 38,
     instructor: 'Dr. Priya Nair',
-    progress: 62,
-    enrolled: true,
+    progress: 0,
+    enrolled: false,
     studentsEnrolled: 1840,
     category: 'Algorithms',
     rating: 4.8,
@@ -102,8 +102,8 @@ const COURSES = [
     modules: 5,
     lessons: 28,
     instructor: 'Dr. Sruthi Varma',
-    progress: 25,
-    enrolled: true,
+    progress: 0,
+    enrolled: false,
     studentsEnrolled: 340,
     category: 'Quantum Chemistry',
     rating: 4.5,
@@ -118,8 +118,8 @@ const LEARNING_PATHS = [
     courses: 3,
     totalHours: '32 hrs',
     difficulty: 'Beginner → Intermediate',
-    progress: 72,
-    enrolled: true,
+    progress: 0,
+    enrolled: false,
     color: 'from-[var(--color-primary)] to-violet-500',
     icon: LuBookOpen,
   },
@@ -130,8 +130,8 @@ const LEARNING_PATHS = [
     courses: 2,
     totalHours: '24 hrs',
     difficulty: 'Intermediate → Advanced',
-    progress: 40,
-    enrolled: true,
+    progress: 0,
+    enrolled: false,
     color: 'from-cyan-500 to-[var(--color-secondary)]',
     icon: LuBrain,
   },
@@ -328,6 +328,10 @@ export default function LearnPage() {
   async function handleEnroll(courseId) {
     try {
       await apiFetch(`/learner/courses/${courseId}/enroll`, { method: 'POST' });
+      if (typeof window !== 'undefined') {
+        window.dispatchEvent(new CustomEvent('learner:activity-updated'));
+        try { localStorage.setItem('learner_activity_sync', String(Date.now())); } catch (e) {}
+      }
     } catch {}
     setCourses(prev => prev.map(c => c.id === courseId ? { ...c, enrolled: true, progress: 0 } : c));
   }
@@ -428,8 +432,8 @@ export default function LearnPage() {
                       Structured paths, expert-taught courses, interactive experiments, and AI-powered personalization.
                     </p>
                     <div className="flex items-center gap-4 pt-2 text-xs font-mono text-[var(--color-muted)] flex-wrap">
-                      <span className="flex items-center gap-1.5 text-emerald-400"><LuCheck size={12} />3 enrolled</span>
-                      <span className="flex items-center gap-1.5"><LuBookOpen size={12} />6 courses available</span>
+                      <span className="flex items-center gap-1.5 text-emerald-400"><LuCheck size={12} />{courses.filter(c => c.enrolled).length} enrolled</span>
+                      <span className="flex items-center gap-1.5"><LuBookOpen size={12} />{courses.length} courses available</span>
                       <span className="flex items-center gap-1.5"><LuFlaskConical size={12} />12 labs</span>
                     </div>
                   </div>

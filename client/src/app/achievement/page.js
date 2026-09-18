@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import ProtectedRoute from '../../components/auth/ProtectedRoute';
 import { LearnerSidebar } from '../../components/sidebar';
 import DashboardNavbar from '../../components/navbar/DashboardNavbar';
@@ -50,33 +50,66 @@ const RARITY_STYLES = {
   Legendary: 'text-amber-400 border-amber-400/30 bg-amber-400/10',
 };
 
-const USER_XP = 4250;
-
 export default function AchievementPage() {
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [filter, setFilter] = useState('all');
   const [apiData, setApiData] = useState(null);
 
-  useEffect(() => {
+  const fetchAchievements = useCallback(() => {
     apiFetch('/learner/achievements')
       .then(res => { if (res?.success) setApiData(res.data); })
-      .catch(() => {}); // fallback to embedded mock data below
+      .catch(() => {});
   }, []);
+
+  useEffect(() => {
+    fetchAchievements();
+    const handleStorage = (e) => {
+      if (e.key === 'learner_activity_sync') {
+        fetchAchievements();
+      }
+    };
+    window.addEventListener('focus', fetchAchievements);
+    window.addEventListener('learner:activity-updated', fetchAchievements);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      window.removeEventListener('focus', fetchAchievements);
+      window.removeEventListener('learner:activity-updated', fetchAchievements);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [fetchAchievements]);
+
+  // If navigated directly to #global-leaderboard, smoothly scroll down to table
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.location.hash === '#global-leaderboard') {
+      const timer = setTimeout(() => {
+        const el = document.getElementById('global-leaderboard');
+        if (el) el.scrollIntoView({ behavior: 'smooth' });
+      }, 350);
+      return () => clearTimeout(timer);
+    }
+  }, [apiData]);
 
   const badges = apiData?.badges || BADGES;
   const milestones = apiData?.milestones || MILESTONES;
   const leaderboard = apiData?.leaderboard || LEADERBOARD;
-  const userXp = apiData?.xp || USER_XP;
+
+  // Global Rank is directly the user's standing in the Global Leaderboard
+  const youInLeaderboard = leaderboard.find(u => u.isYou);
+  const userRank = youInLeaderboard?.rank ?? apiData?.rank ?? 1;
+  const userXp = youInLeaderboard?.xp ?? apiData?.xp ?? 0;
+  const userStreak = apiData?.streak ?? 0;
 
   const earned = badges.filter(b => b.earned);
   const locked = badges.filter(b => !b.earned);
   const filtered = filter === 'earned' ? earned : filter === 'locked' ? locked : badges;
 
   // XP milestone progress
-  const currentMilestone = milestones.filter(m => userXp >= m.xp).slice(-1)[0];
+  const currentMilestone = milestones.filter(m => userXp >= m.xp).slice(-1)[0] || milestones[0];
   const nextMilestone = milestones.find(m => userXp < m.xp);
-  const pct = nextMilestone ? Math.round(((userXp - currentMilestone.xp) / (nextMilestone.xp - currentMilestone.xp)) * 100) : 100;
+  const pct = nextMilestone 
+    ? Math.min(100, Math.max(0, Math.round(((userXp - currentMilestone.xp) / (nextMilestone.xp - currentMilestone.xp)) * 100))) 
+    : 100;
 
   return (
     <ProtectedRoute>
@@ -111,17 +144,41 @@ export default function AchievementPage() {
                   </div>
                   <div className="flex items-center gap-4 flex-wrap">
                     {[
-                      { label: 'XP', value: '4,250', icon: LuZap, color: 'text-amber-400' },
-                      { label: 'Badges', value: `${earned.length}/${BADGES.length}`, icon: LuMedal, color: 'text-violet-400' },
-                      { label: 'Streak', value: '12 days', icon: LuFlame, color: 'text-rose-400' },
-                      { label: 'Global Rank', value: '#42', icon: LuTrophy, color: 'text-cyan-400' },
+                      { label: 'XP', value: userXp.toLocaleString(), icon: LuZap, color: 'text-amber-400' },
+                      { label: 'Badges', value: `${earned.length}/${badges.length}`, icon: LuMedal, color: 'text-violet-400' },
+                      { label: 'Streak', value: `${userStreak} ${userStreak === 1 ? 'day' : 'days'}`, icon: LuFlame, color: 'text-rose-400' },
+                      {
+                        label: 'Global Rank',
+                        value: `#${userRank}`,
+                        icon: LuTrophy,
+                        color: 'text-cyan-400',
+                        onClick: () => {
+                          const el = document.getElementById('global-leaderboard');
+                          if (el) el.scrollIntoView({ behavior: 'smooth' });
+                        },
+                        sublabel: 'On Leaderboard',
+                      },
                     ].map(s => {
                       const Icon = s.icon;
                       return (
-                        <div key={s.label} className="flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--color-background)]/60 border border-[var(--color-border)]/50">
-                          <Icon size={14} className={s.color} />
+                        <div
+                          key={s.label}
+                          onClick={s.onClick}
+                          className={`flex items-center gap-2 px-4 py-2.5 rounded-xl bg-[var(--color-background)]/60 border border-[var(--color-border)]/50 transition-all ${
+                            s.onClick ? 'hover:border-cyan-400/50 hover:bg-cyan-500/5 cursor-pointer group' : ''
+                          }`}
+                          title={s.onClick ? 'Click to view your position on the Global Leaderboard' : undefined}
+                        >
+                          <Icon size={14} className={`${s.color} ${s.onClick ? 'group-hover:scale-110 transition-transform' : ''}`} />
                           <div>
-                            <div className="text-sm font-bold font-mono text-[var(--color-text)]">{s.value}</div>
+                            <div className="text-sm font-bold font-mono text-[var(--color-text)] flex items-center gap-1">
+                              {s.value}
+                              {s.sublabel && (
+                                <span className="text-[9px] font-sans font-normal text-cyan-400/80 group-hover:text-cyan-400">
+                                  ↓
+                                </span>
+                              )}
+                            </div>
                             <div className="text-[10px] text-[var(--color-muted)] uppercase tracking-wider">{s.label}</div>
                           </div>
                         </div>
@@ -174,7 +231,7 @@ export default function AchievementPage() {
               <div className="flex items-center justify-between flex-wrap gap-3">
                 <h2 className="font-semibold text-base text-[var(--color-text)]">Badges & Awards</h2>
                 <div className="flex gap-1.5">
-                  {[{ id: 'all', label: 'All' }, { id: 'earned', label: `Earned (${earned.length})` }, { id: 'locked', label: `Locked (${locked.length})` }].map(f => (
+                  {[{ id: 'all', label: `All (${badges.length})` }, { id: 'earned', label: `Earned (${earned.length})` }, { id: 'locked', label: `Locked (${locked.length})` }].map(f => (
                     <button
                       key={f.id}
                       onClick={() => setFilter(f.id)}
@@ -209,12 +266,12 @@ export default function AchievementPage() {
                         <div className="font-semibold text-sm text-[var(--color-text)] truncate">{badge.title}</div>
                         <p className="text-xs text-[var(--color-muted)] leading-relaxed">{badge.desc}</p>
                         <div className="flex items-center gap-2 pt-1 flex-wrap">
-                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${RARITY_STYLES[badge.rarity]}`}>
+                          <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full border ${RARITY_STYLES[badge.rarity] || RARITY_STYLES.Common}`}>
                             {badge.rarity}
                           </span>
                           <span className="text-[10px] font-mono text-amber-400">+{badge.xp} XP</span>
                           {badge.earned && badge.date && (
-                            <span className="text-[10px] font-mono text-[var(--color-muted)] ml-1">Lvl {apiData?.level || 7}</span>
+                            <span className="text-[10px] font-mono text-emerald-400/90 ml-1">Earned {badge.date}</span>
                           )}
                         </div>
                       </div>
@@ -224,35 +281,53 @@ export default function AchievementPage() {
               </div>
             </div>
 
-            {/* Leaderboard */}
-            <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden">
-              <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center gap-2">
-                <LuTrophy size={16} className="text-amber-400" />
-                <h2 className="font-semibold text-base text-[var(--color-text)]">Global Leaderboard</h2>
+            {/* Global Leaderboard */}
+            <div id="global-leaderboard" className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] overflow-hidden scroll-mt-6">
+              <div className="px-6 py-4 border-b border-[var(--color-border)] flex items-center justify-between flex-wrap gap-2">
+                <div className="flex items-center gap-2">
+                  <LuTrophy size={16} className="text-amber-400" />
+                  <h2 className="font-semibold text-base text-[var(--color-text)]">Global Leaderboard</h2>
+                </div>
+                <div className="flex items-center gap-2 text-xs font-mono">
+                  <span className="text-[var(--color-muted)]">Your Standing:</span>
+                  <span className="px-2.5 py-0.5 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/25 font-bold">
+                    Rank #{userRank}
+                  </span>
+                </div>
               </div>
               <div className="divide-y divide-[var(--color-border)]/50">
-                {leaderboard.map(user => (
+                {leaderboard.map((user, idx) => (
                   <div
-                    key={user.rank}
-                    className={`flex items-center gap-4 px-6 py-4 transition-all ${user.isYou ? 'bg-[var(--color-primary)]/5 border-l-2 border-l-[var(--color-primary)]' : 'hover:bg-[var(--color-background)]'}`}
+                    key={`${user.rank}-${user.name}-${idx}`}
+                    className={`flex items-center gap-4 px-6 py-4 transition-all ${
+                      user.isYou 
+                        ? 'bg-[var(--color-primary)]/10 border-l-4 border-l-[var(--color-primary)] shadow-sm' 
+                        : 'hover:bg-[var(--color-background)]'
+                    }`}
                   >
                     <div className="w-7 text-center">
                       {user.badge ? (
                         <span className="text-lg">{user.badge}</span>
                       ) : (
-                        <span className="text-sm font-mono font-bold text-[var(--color-muted)]">#{user.rank}</span>
+                        <span className={`text-sm font-mono font-bold ${user.isYou ? 'text-[var(--color-primary)]' : 'text-[var(--color-muted)]'}`}>
+                          #{user.rank}
+                        </span>
                       )}
                     </div>
                     <div className="w-9 h-9 rounded-full bg-gradient-to-br from-[var(--color-primary)] to-[var(--color-secondary)] flex items-center justify-center text-white text-xs font-bold flex-shrink-0">
-                      {user.avatar}
+                      {user.avatar || (user.name ? user.name.split(' ').map(n => n[0]).join('').slice(0, 2).toUpperCase() : 'U')}
                     </div>
                     <div className="flex-1 min-w-0">
                       <div className="text-sm font-medium text-[var(--color-text)] flex items-center gap-2">
-                        {user.name}
-                        {user.isYou && <span className="text-[9px] font-mono px-1.5 py-0.5 rounded bg-[var(--color-primary)]/10 text-[var(--color-primary)] border border-[var(--color-primary)]/20">YOU</span>}
+                        <span className={user.isYou ? 'font-bold text-[var(--color-text)]' : ''}>{user.name}</span>
+                        {user.isYou && (
+                          <span className="text-[9px] font-mono px-2 py-0.5 rounded-md bg-[var(--color-primary)] text-white font-bold tracking-wider">
+                            YOU · RANK #{user.rank}
+                          </span>
+                        )}
                       </div>
                     </div>
-                    <div className="text-sm font-bold font-mono text-amber-400">{user.xp.toLocaleString()} XP</div>
+                    <div className="text-sm font-bold font-mono text-amber-400">{(user.xp || 0).toLocaleString()} XP</div>
                   </div>
                 ))}
               </div>

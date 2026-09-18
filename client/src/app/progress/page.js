@@ -19,30 +19,48 @@ import {
   LuBookOpen,
   LuBrain,
   LuBot,
+  LuTarget,
+  LuCalendar,
 } from 'react-icons/lu';
 
 const DEFAULT_PROGRESS = {
-  overallProgress: 62,
-  coursesCompleted: 1,
-  totalCourses: 6,
-  lessonsCompleted: 54,
-  totalLessons: 87,
-  challengesSolved: 13,
-  challengesAttempted: 18,
-  quizAvgScore: 84,
-  learningHours: 38.5,
-  currentStreak: 12,
-  longestStreak: 18,
-  weeklyActivity: [2, 4, 3, 5, 4, 6, 3],
-  milestones: [
-    { title: 'Superposition & Qubit Measurement', status: 'Completed', date: 'Aug 2026', xp: 200 },
-    { title: 'Quantum Teleportation Protocol', status: 'Completed', date: 'Aug 2026', xp: 350 },
-    { title: "Grover's Oracles", status: 'In Progress', date: 'Expected Oct 2026', xp: 500 },
-    { title: 'Variational Quantum Eigensolver', status: 'Upcoming', date: 'Expected Nov 2026', xp: 800 },
-  ],
-  circuitsBuilt: 18,
-  simulationsRun: 84,
-  aiInteractions: 42,
+  overallProgress: 0,
+  coursesCompleted: 0,
+  totalCourses: 0,
+  lessonsCompleted: 0,
+  totalLessons: 0,
+  challengesSolved: 0,
+  challengesAttempted: 0,
+  quizAvgScore: 0,
+  learningHours: 0,
+  currentStreak: 0,
+  longestStreak: 0,
+  weeklyActivity: [0, 0, 0, 0, 0, 0, 0],
+  weeklyDetails: [],
+  rolling7Days: [],
+  weekSummary: {
+    totalHours: 0,
+    totalMinutes: 0,
+    formattedTotalTime: '0m',
+    totalRollingHours: 0,
+    totalRollingMinutes: 0,
+    activeDays: 0,
+    daysElapsed: 1,
+    dailyAverageHours: 0,
+    dailyAverageMinutes: 0,
+    formattedDailyAverage: '0m',
+    bestDay: 'None',
+    todayHours: 0,
+    todayMinutes: 0,
+    formattedTodayTime: '0m',
+    todayActivityCount: 0,
+    weeklyTargetHours: 5,
+    targetProgressPct: 0,
+  },
+  milestones: [],
+  circuitsBuilt: 0,
+  simulationsRun: 0,
+  aiInteractions: 0,
 };
 
 const DAYS = ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'];
@@ -52,24 +70,48 @@ export default function ProgressPage() {
   const [isMobileOpen, setIsMobileOpen] = useState(false);
   const [progress, setProgress] = useState(DEFAULT_PROGRESS);
   const [loading, setLoading] = useState(true);
+  const [activityView, setActivityView] = useState('week'); // 'week' | 'rolling'
+  const [hoveredIndex, setHoveredIndex] = useState(null);
+
+  const fetchProgress = React.useCallback(async () => {
+    try {
+      setLoading(true);
+      const tz = typeof Intl !== 'undefined' ? Intl.DateTimeFormat().resolvedOptions().timeZone : 'UTC';
+      const res = await apiFetch(`/learner/progress?tz=${encodeURIComponent(tz)}`);
+      if (res?.data) {
+        setProgress(res.data);
+      }
+    } catch (err) {
+      console.warn('ProgressPage error:', err.message);
+    } finally {
+      setLoading(false);
+    }
+  }, []);
 
   useEffect(() => {
-    let mounted = true;
-    async function fetchProgress() {
-      try {
-        const res = await apiFetch('/learner/progress');
-        if (mounted && res?.data) {
-          setProgress(res.data);
-        }
-      } catch (err) {
-        console.warn('ProgressPage using fallback data:', err.message);
-      } finally {
-        if (mounted) setLoading(false);
-      }
-    }
     fetchProgress();
-    return () => { mounted = false; };
-  }, []);
+
+    const handleStorage = (e) => {
+      if (e.key === 'learner_activity_sync') {
+        fetchProgress();
+      }
+    };
+
+    // Auto-refresh every 60s to dynamically reflect learning time and activity updates
+    const liveInterval = setInterval(() => {
+      fetchProgress();
+    }, 60000);
+
+    window.addEventListener('focus', fetchProgress);
+    window.addEventListener('learner:activity-updated', fetchProgress);
+    window.addEventListener('storage', handleStorage);
+    return () => {
+      clearInterval(liveInterval);
+      window.removeEventListener('focus', fetchProgress);
+      window.removeEventListener('learner:activity-updated', fetchProgress);
+      window.removeEventListener('storage', handleStorage);
+    };
+  }, [fetchProgress]);
 
   const stats = [
     { label: 'Circuits Created', value: progress.circuitsBuilt, icon: LuCpu, color: 'text-cyan-400', change: '+3 this week' },
@@ -78,7 +120,29 @@ export default function ProgressPage() {
     { label: 'Learning Hours', value: `${progress.learningHours}h`, icon: LuClock, color: 'text-emerald-400', change: `${progress.currentStreak} day streak 🔥` },
   ];
 
-  const maxWeeklyHours = Math.max(...(progress.weeklyActivity || [1]), 6);
+  // Current Week Days fallback if backend hasn't populated weeklyDetails
+  const currentWeekDays = progress.weeklyDetails && progress.weeklyDetails.length === 7
+    ? progress.weeklyDetails
+    : ['Mon', 'Tue', 'Wed', 'Thu', 'Fri', 'Sat', 'Sun'].map((d, i) => ({
+        index: i,
+        day: d,
+        fullDay: d,
+        date: '',
+        formattedDate: '',
+        hours: (progress.weeklyActivity && progress.weeklyActivity[i]) || 0,
+        minutes: Math.round(((progress.weeklyActivity && progress.weeklyActivity[i]) || 0) * 60),
+        formattedTime: `${(progress.weeklyActivity && progress.weeklyActivity[i]) || 0}h`,
+        isToday: false,
+        isFuture: false,
+        details: [],
+      }));
+
+  const rollingDays = progress.rolling7Days && progress.rolling7Days.length === 7
+    ? progress.rolling7Days
+    : currentWeekDays;
+
+  const displayDays = activityView === 'rolling' ? rollingDays : currentWeekDays;
+  const maxWeeklyHours = Math.max(...displayDays.map(d => d.hours || 0), 2);
 
   return (
     <ProtectedRoute>
@@ -175,37 +239,211 @@ export default function ProgressPage() {
             <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
               {/* Weekly Activity Chart */}
               <div className="lg:col-span-2 p-6 sm:p-8 rounded-3xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-6">
-                <div className="flex items-center justify-between">
+                <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
                   <div>
                     <h2 className="text-lg font-bold text-[var(--color-text)] flex items-center gap-2">
                       <LuActivity size={20} className="text-cyan-400" />
                       <span>Weekly Learning Activity</span>
                     </h2>
-                    <p className="text-xs text-[var(--color-muted)] mt-1">Hours spent learning and practicing over the past 7 days</p>
+                    <p className="text-xs text-[var(--color-muted)] mt-1">
+                      {activityView === 'week'
+                        ? 'Track daily focus time across the current Monday–Sunday schedule'
+                        : 'Rolling learning time and practice recorded over the past 7 days'}
+                    </p>
                   </div>
-                  <span className="text-xs font-mono font-semibold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full">
-                    {progress.weeklyActivity?.reduce((a, b) => a + b, 0)} hrs this week
-                  </span>
+
+                  <div className="flex items-center gap-2">
+                    {/* View Switcher: Current Week vs Rolling 7 Days */}
+                    <div className="inline-flex p-1 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-xs font-mono">
+                      <button
+                        type="button"
+                        onClick={() => setActivityView('week')}
+                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                          activityView === 'week'
+                            ? 'bg-[var(--color-primary)] text-white shadow-sm font-semibold'
+                            : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                        }`}
+                      >
+                        This Week
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => setActivityView('rolling')}
+                        className={`px-3 py-1 rounded-lg transition-all cursor-pointer ${
+                          activityView === 'rolling'
+                            ? 'bg-[var(--color-primary)] text-white shadow-sm font-semibold'
+                            : 'text-[var(--color-muted)] hover:text-[var(--color-text)]'
+                        }`}
+                      >
+                        Past 7 Days
+                      </button>
+                    </div>
+
+                    <span className="text-xs font-mono font-semibold text-cyan-400 bg-cyan-500/10 border border-cyan-500/20 px-3 py-1 rounded-full whitespace-nowrap">
+                      {activityView === 'week'
+                        ? `${progress.weekSummary?.formattedTotalTime || `${progress.weekSummary?.totalHours || 0}h`} this week`
+                        : `${progress.weekSummary?.totalRollingHours || 0} hrs past 7 days`}
+                    </span>
+                  </div>
                 </div>
 
-                <div className="h-44 flex items-end justify-between gap-3 pt-6 px-2">
-                  {(progress.weeklyActivity || [2, 4, 3, 5, 4, 6, 3]).map((hrs, idx) => {
-                    const heightPct = Math.round((hrs / maxWeeklyHours) * 100);
-                    return (
-                      <div key={idx} className="flex-1 flex flex-col items-center gap-2 group">
-                        <span className="text-[10px] font-mono text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity">
-                          {hrs}h
-                        </span>
-                        <div className="w-full bg-[var(--color-border)]/30 rounded-xl h-32 flex items-end overflow-hidden p-1">
+                {/* Bars Grid */}
+                <div className="relative pt-6 pb-2">
+                  <div className="h-44 flex items-end justify-between gap-2 sm:gap-3 px-1 sm:px-2">
+                    {displayDays.map((item, idx) => {
+                      const hrs = item.hours || 0;
+                      const heightPct = hrs > 0
+                        ? Math.max(12, Math.round((hrs / maxWeeklyHours) * 100))
+                        : item.isFuture
+                        ? 0
+                        : 5;
+                      const isHovered = hoveredIndex === idx;
+
+                      return (
+                        <div
+                          key={idx}
+                          onMouseEnter={() => setHoveredIndex(idx)}
+                          onMouseLeave={() => setHoveredIndex(null)}
+                          className="flex-1 flex flex-col items-center gap-2 group relative cursor-pointer"
+                        >
+                          {/* Rich Floating Tooltip */}
+                          {isHovered && (
+                            <div className="absolute -top-16 z-30 px-3 py-2 rounded-xl bg-slate-900/95 text-white border border-cyan-500/40 shadow-xl shadow-cyan-500/10 text-center pointer-events-none whitespace-nowrap backdrop-blur-md animate-in fade-in zoom-in-95 duration-150">
+                              <div className="text-[11px] font-bold font-mono text-cyan-300">
+                                {item.fullDay || item.day} {item.formattedDate ? `• ${item.formattedDate}` : ''}
+                              </div>
+                              <div className="text-xs font-semibold mt-0.5">
+                                {item.formattedTime || `${hrs}h`} ({hrs} hrs)
+                              </div>
+                              {item.details && item.details.length > 0 ? (
+                                <div className="text-[10px] text-slate-300 max-w-[200px] truncate mt-0.5">
+                                  {item.details.join(', ')}
+                                </div>
+                              ) : item.isToday ? (
+                                <div className="text-[10px] text-cyan-400 mt-0.5">Today&apos;s Active Session</div>
+                              ) : item.isFuture ? (
+                                <div className="text-[10px] text-slate-400 mt-0.5">Upcoming Day</div>
+                              ) : (
+                                <div className="text-[10px] text-slate-400 mt-0.5">No logged activity</div>
+                              )}
+                            </div>
+                          )}
+
+                          {/* Time tag above bar */}
+                          <span
+                            className={`text-[10px] font-mono transition-opacity ${
+                              item.isToday
+                                ? 'text-cyan-400 font-bold opacity-100'
+                                : hrs > 0
+                                ? 'text-[var(--color-muted)] group-hover:opacity-100 group-hover:text-[var(--color-text)]'
+                                : 'opacity-0'
+                            }`}
+                          >
+                            {item.formattedTime || `${hrs}h`}
+                          </span>
+
+                          {/* Bar Container */}
                           <div
-                            className="w-full bg-gradient-to-t from-[var(--color-primary)] to-cyan-400 rounded-lg transition-all duration-500 group-hover:brightness-110"
-                            style={{ height: `${heightPct}%` }}
-                          />
+                            className={`w-full rounded-xl h-32 flex items-end overflow-hidden p-1 transition-all ${
+                              item.isToday
+                                ? 'bg-cyan-500/15 border-2 border-cyan-400/80 shadow-md shadow-cyan-500/20'
+                                : item.isFuture
+                                ? 'bg-[var(--color-border)]/15 border border-dashed border-[var(--color-border)]/40'
+                                : 'bg-[var(--color-border)]/30 border border-[var(--color-border)]/30'
+                            }`}
+                          >
+                            <div
+                              className={`w-full rounded-lg transition-all duration-500 ${
+                                item.isToday
+                                  ? 'bg-gradient-to-t from-[var(--color-primary)] via-cyan-400 to-cyan-300 shadow-sm shadow-cyan-400/50'
+                                  : hrs > 0
+                                  ? 'bg-gradient-to-t from-[var(--color-primary)] to-cyan-400 group-hover:brightness-110'
+                                  : item.isFuture
+                                  ? 'bg-transparent'
+                                  : 'bg-[var(--color-border)]/40'
+                              }`}
+                              style={{ height: `${heightPct}%` }}
+                            />
+                          </div>
+
+                          {/* Day & Date Labels */}
+                          <div className="flex flex-col items-center gap-0.5">
+                            <span
+                              className={`text-xs font-mono font-semibold ${
+                                item.isToday
+                                  ? 'text-cyan-400'
+                                  : item.isFuture
+                                  ? 'text-[var(--color-muted)]/60'
+                                  : 'text-[var(--color-text)]'
+                              }`}
+                            >
+                              {item.day}
+                            </span>
+                            {item.formattedDate && (
+                              <span className="text-[10px] font-mono text-[var(--color-muted)] whitespace-nowrap">
+                                {item.formattedDate.split(' ')[0]}
+                              </span>
+                            )}
+                            {item.isToday && (
+                              <span className="mt-0.5 text-[8px] font-mono uppercase tracking-widest font-black text-cyan-400 bg-cyan-500/15 border border-cyan-500/30 px-1 rounded-sm">
+                                Today
+                              </span>
+                            )}
+                          </div>
                         </div>
-                        <span className="text-xs font-mono text-[var(--color-muted)]">{DAYS[idx]}</span>
+                      );
+                    })}
+                  </div>
+                </div>
+
+                {/* Actionable Learning Metrics & Goal Progress Bar */}
+                <div className="grid grid-cols-1 sm:grid-cols-3 gap-3 pt-4 border-t border-[var(--color-border)]/60">
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-[var(--color-background)]/60 border border-[var(--color-border)]/60">
+                    <div className="p-2 rounded-xl bg-cyan-500/10 text-cyan-400">
+                      <LuClock size={16} />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-mono text-[var(--color-muted)]">Daily Average</div>
+                      <div className="text-sm font-bold font-mono text-[var(--color-text)]">
+                        {progress.weekSummary?.formattedDailyAverage || '0m'} / day
                       </div>
-                    );
-                  })}
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-[var(--color-background)]/60 border border-[var(--color-border)]/60">
+                    <div className="p-2 rounded-xl bg-emerald-500/10 text-emerald-400">
+                      <LuFlame size={16} />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-mono text-[var(--color-muted)]">Active Days</div>
+                      <div className="text-sm font-bold font-mono text-[var(--color-text)]">
+                        {progress.weekSummary?.activeDays || 0} of 7 days logged
+                      </div>
+                    </div>
+                  </div>
+
+                  <div className="flex items-center gap-3 p-3 rounded-2xl bg-[var(--color-background)]/60 border border-[var(--color-border)]/60">
+                    <div className="p-2 rounded-xl bg-amber-500/10 text-amber-400">
+                      <LuTarget size={16} />
+                    </div>
+                    <div>
+                      <div className="text-[11px] font-mono text-[var(--color-muted)]">Weekly Target (5h)</div>
+                      <div className="text-sm font-bold font-mono text-[var(--color-text)]">
+                        {progress.weekSummary?.targetProgressPct || 0}% reached
+                      </div>
+                    </div>
+                  </div>
+                </div>
+
+                {/* Skill & Learning Improvement Advice */}
+                <div className="flex items-center gap-2.5 px-4 py-3 rounded-2xl bg-gradient-to-r from-cyan-500/10 via-violet-500/10 to-transparent border border-cyan-500/20 text-xs text-[var(--color-muted)]">
+                  <LuSparkles size={16} className="text-cyan-400 shrink-0" />
+                  <span>
+                    <strong className="text-[var(--color-text)] font-semibold">Skill Retention Tip: </strong>
+                    {progress.weekSummary?.todayHours > 0
+                      ? `Great momentum! You logged ${progress.weekSummary.formattedTodayTime || `${progress.weekSummary.todayHours}h`} today. Studying in consistent daily blocks enhances quantum circuit comprehension and maintains your streak.`
+                      : 'Setting aside 30–45 minutes of daily practice keeps your streak alive and accelerates quantum algorithm problem solving.'}
+                  </span>
                 </div>
               </div>
 

@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from 'react';
+import { apiFetch } from '../../../services/api';
 import {
   LuArrowLeft, LuArrowRight, LuCheck, LuCircle, LuBot,
   LuSparkles, LuLightbulb, LuPlay, LuCpu, LuFlaskConical,
@@ -143,9 +144,18 @@ export default function InteractiveExperiment({ experiment = EXPERIMENT, onClose
     if (!isLastStep) {
       setCurrentStep(s => s + 1);
     } else {
-      // Last step: run simulation
+      // Last step: run simulation and automatically sync profile
       setSimRunning(true);
-      setTimeout(() => { setSimRunning(false); setSimDone(true); }, 2000);
+      setTimeout(async () => {
+        setSimRunning(false);
+        setSimDone(true);
+        try {
+          await apiFetch('/learner/lessons/e1/complete', {
+            method: 'PATCH',
+            body: JSON.stringify({ courseId: 'c1' }),
+          });
+        } catch {}
+      }, 2000);
     }
   }
 

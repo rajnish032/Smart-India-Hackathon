@@ -371,19 +371,32 @@ export default function LearnerOverview({ user, hubData }) {
             <h3 className="text-sm font-semibold text-[var(--color-text)]">Quick Stats</h3>
             <div className="space-y-3">
               {[
-                { label: 'Global Rank', value: '#42', icon: LuTrendingUp, color: 'text-emerald-400' },
-                { label: 'Badges Earned', value: '7', icon: LuStar, color: 'text-amber-400' },
-                { label: 'Days Active', value: '24', icon: LuCalendar, color: 'text-cyan-400' },
-                { label: 'XP This Week', value: '+850', icon: LuZap, color: 'text-violet-400' },
+                { label: 'Global Rank', value: `#${quickStats.rank || 1}`, icon: LuTrendingUp, color: 'text-emerald-400', href: '/achievement#global-leaderboard' },
+                { label: 'Badges Earned', value: `${quickStats.badges || 0}`, icon: LuStar, color: 'text-amber-400', href: '/achievement' },
+                { label: 'Days Active', value: `${quickStats.daysActive || 0} ${quickStats.daysActive === 1 ? 'day' : 'days'}`, icon: LuCalendar, color: 'text-cyan-400' },
+                { label: 'XP This Week', value: `+${quickStats.xpThisWeek || 0}`, icon: LuZap, color: 'text-violet-400' },
               ].map(item => {
                 const Icon = item.icon;
-                return (
-                  <div key={item.label} className="flex items-center justify-between">
+                const inner = (
+                  <div className={`flex items-center justify-between p-1.5 -mx-1.5 rounded-xl transition-all ${item.href ? 'hover:bg-[var(--color-background)]/60 cursor-pointer group' : ''}`}>
                     <div className="flex items-center gap-2.5">
-                      <Icon size={14} className={item.color} />
-                      <span className="text-xs text-[var(--color-muted)]">{item.label}</span>
+                      <Icon size={14} className={`${item.color} ${item.href ? 'group-hover:scale-110 transition-transform' : ''}`} />
+                      <span className={`text-xs text-[var(--color-muted)] ${item.href ? 'group-hover:text-[var(--color-text)]' : ''}`}>{item.label}</span>
                     </div>
-                    <span className="text-sm font-bold font-mono text-[var(--color-text)]">{item.value}</span>
+                    <div className="flex items-center gap-1.5">
+                      <span className="text-sm font-bold font-mono text-[var(--color-text)]">{item.value}</span>
+                      {item.href && <span className="text-xs text-[var(--color-muted)] opacity-0 group-hover:opacity-100 transition-opacity">→</span>}
+                    </div>
+                  </div>
+                );
+
+                return item.href ? (
+                  <Link key={item.label} href={item.href} className="block no-underline">
+                    {inner}
+                  </Link>
+                ) : (
+                  <div key={item.label}>
+                    {inner}
                   </div>
                 );
               })}

@@ -5,7 +5,18 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/a
  * Implements silent token refresh on 401 TOKEN_EXPIRED errors.
  */
 export async function apiFetch(endpoint, options = {}) {
-  const url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+  let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
+
+  // For GET requests, pass local timezone via URL query param to avoid CORS custom header preflight blocks
+  if ((!options.method || options.method.toUpperCase() === 'GET') && typeof Intl !== 'undefined') {
+    try {
+      const tz = Intl.DateTimeFormat().resolvedOptions().timeZone;
+      if (tz && !url.includes('tz=')) {
+        const sep = url.includes('?') ? '&' : '?';
+        url = `${url}${sep}tz=${encodeURIComponent(tz)}`;
+      }
+    } catch (e) {}
+  }
 
   const headers = {
     'Content-Type': 'application/json',
@@ -48,6 +59,14 @@ export async function apiFetch(endpoint, options = {}) {
       error.data = data;
       error.code = data?.code;
       throw error;
+    }
+
+    // Broadcast activity sync event across tabs and components on mutations
+    if (typeof window !== 'undefined' && options.method && options.method !== 'GET') {
+      try {
+        window.dispatchEvent(new CustomEvent('learner:activity-updated', { detail: { endpoint, data } }));
+        localStorage.setItem('learner_activity_sync', Date.now().toString());
+      } catch (e) {}
     }
 
     return data;
