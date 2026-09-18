@@ -1,0 +1,319 @@
+# This code is part of Qiskit.
+#
+# (C) Copyright IBM 2026.
+#
+# This code is licensed under the Apache License, Version 2.0. You may
+# obtain a copy of this license in the LICENSE.txt file in the root directory
+# of this source tree or at http://www.apache.org/licenses/LICENSE-2.0.
+#
+# Any modifications or derivative works of this code must retain this
+# copyright notice, and modified files need to carry a notice indicating
+# that they have been altered from the originals.
+
+"""
+Qiskit Documentation MCP Server
+
+A Model Context Protocol server that provides access to IBM Qiskit documentation
+for querying and retrieving Qiskit documentation content and summaries.
+"""
+
+import logging
+from collections.abc import AsyncIterator
+from contextlib import asynccontextmanager
+from typing import Any
+
+import httpx
+from fastmcp import FastMCP
+
+from qiskit_docs_mcp_server.constants import HTTP_TIMEOUT
+from qiskit_docs_mcp_server.data_fetcher import (
+    get_list_of_addons,
+    get_list_of_api_packages,
+    get_list_of_error_code_categories,
+    get_list_of_guides,
+    get_list_of_modules,
+    get_list_of_tutorials,
+    get_page_docs,
+    lookup_error_code,
+    search_qiskit_docs,
+)
+from qiskit_docs_mcp_server.http import clear_http_client, set_http_client
+from qiskit_docs_mcp_server.sitemap import load_sitemap
+
+
+# Configure logging
+logging.basicConfig(level=logging.INFO)
+logger = logging.getLogger(__name__)
+
+
+@asynccontextmanager
+async def lifespan(server: FastMCP) -> AsyncIterator[None]:
+    """Manage the httpx client lifecycle."""
+    async with httpx.AsyncClient(timeout=HTTP_TIMEOUT, follow_redirects=True) as client:
+        set_http_client(client)
+        await load_sitemap()
+        yield
+    clear_http_client()
+
+
+# Initialize FastMCP server
+mcp = FastMCP(
+    "Qiskit Documentation",
+    lifespan=lifespan,
+    instructions="""\
+This server provides access to the Qiskit and IBM Quantum documentation.
+
+Recommended workflow:
+1. Use search_docs_tool to find relevant pages. It returns short snippets \
+(not full pages), so it is cheap to call. Specific queries yield better \
+results than broad ones.
+2. Use get_page_tool to fetch the full content of a page found by search. \
+For large pages, use the offset parameter to paginate through content.
+3. Browse qiskit-docs:// resources (modules, addons, guides, error-codes) \
+to discover what documentation is available.
+4. Use lookup_error_code_tool with a 4-digit code when a user encounters \
+a Qiskit or IBM Quantum error.
+
+Prefer search over browsing for specific questions. Combine search to \
+find the right page, then fetch to read its content in full.\
+""",
+)
+
+logger.info("Qiskit Documentation MCP Server initialized")
+
+
+##################################################
+## MCP Tools
+## - https://modelcontextprotocol.io/docs/concepts/tools
+##################################################
+
+
+@mcp.tool()
+async def search_docs_tool(
+    query: str,
+    scope: str = "all",
+    top_k: int | None = None,
+    detail: str = "snippet",
+) -> dict[str, Any]:
+    """Search across the entire Qiskit documentation for relevant content.
+
+    Use this as the primary entry point to discover documentation pages. Returns
+    a small set of ranked results, each with a short query-centered snippet plus
+    its title, URL, and section. This keeps the response compact for repeated use
+    inside an agent. To read a page in full, pass a result's URL to get_page_tool.
+
+    Args:
+        query: Search query string (e.g., 'error mitigation', 'QuantumCircuit',
+            'transpiler optimization'). More specific queries yield better results.
+        scope: Search scope filter (case-sensitive). Valid values:
+            'all' — Search everything (default)
+            'documentation' — Guides and general docs
+            'api' — API reference pages only
+            'learning' — Learning resources and tutorials
+            'tutorials' — Tutorial content only
+        top_k: Maximum number of results to return. Left unset, snippet mode
+            returns up to 5 and full mode returns every match. An explicit
+            value is capped at 10 in snippet mode; full mode honors it as-is.
+        detail: Per-result content level. 'snippet' (default) returns a short
+            excerpt, a trimmed field set, and a small ranked subset; 'full'
+            restores the original behavior — every match by default, each with
+            its full page body as 'text' and all original fields (backwards
+            compatible) — heavier, so prefer get_page_tool for a single page.
+
+    Returns:
+        Matching documentation entries (id, url, title, pageTitle, module,
+        section, and a snippet) plus 'total_results' (grand total of matches),
+        'returned_results' (count after the top_k cap), and a 'truncated' flag.
+        Use a result's URL with get_page_tool to fetch the full page content.
+    """
+    return await search_qiskit_docs(query, scope, top_k=top_k, detail=detail)
+
+
+@mcp.tool()
+async def get_page_tool(
+    url: str,
+    max_length: int = 20000,
+    offset: int = 0,
+) -> dict[str, Any]:
+    """Fetch a Qiskit documentation page and return its content as markdown.
+
+    Accepts any URL from the Qiskit documentation site. Use search_docs_tool
+    first to find the right page, or use URLs from the resource lists.
+
+    Returns documentation in markdown format with pagination support.
+    Default max_length is 20000 chars. Set max_length=0 for unlimited.
+    Use offset to retrieve subsequent pages when has_more is true.
+
+    This tool can fetch ANY page in the Qiskit documentation, including:
+    - SDK module API references (e.g., 'api/qiskit/circuit')
+    - Individual class pages (e.g., 'api/qiskit/qiskit.circuit.QuantumCircuit')
+    - Addon documentation (e.g., 'api/qiskit-addon-sqd')
+    - Implementation guides (e.g., 'guides/transpile')
+    - Any other documentation page
+
+    Args:
+        url: Documentation page URL. Accepts:
+            - Full URL: 'https://quantum.cloud.ibm.com/docs/guides/transpile'
+            - Relative path: 'guides/transpile', 'api/qiskit/circuit'
+        max_length: Maximum characters to return (default: 20000, 0 for unlimited)
+        offset: Character offset for pagination (default: 0)
+
+    Returns:
+        Page content in markdown format with pagination metadata
+        (has_more, next_offset, total_length), or error with suggestion
+        to use search_docs_tool if the page is not found.
+    """
+    return await get_page_docs(url, max_length=max_length, offset=offset)
+
+
+@mcp.tool()
+async def lookup_error_code_tool(code: str) -> dict[str, Any]:
+    """Look up a Qiskit or IBM Quantum error code to get its description and solution.
+
+    Use this when a user encounters a numeric error code from Qiskit or
+    IBM Quantum services. Returns the error message and suggested fix.
+    Read the qiskit-docs://error-codes resource for error code categories.
+
+    Error code ranges:
+        1XXX: Validation, transpilation, backend, authorization, job management
+        2XXX: Backend configuration, booking, data retrieval
+        3XXX: Job handling, authentication, analytics
+        4XXX: Session management and job limits
+        5XXX: Job timeout and cancellation
+        6XXX: Shot limits, compiler input, control system
+        7XXX: Instruction and basis gate compatibility
+        8XXX: Pulse and channel configuration
+        9XXX: Hardware loading and internal errors
+
+    Args:
+        code: 4-digit numeric error code as a string (e.g., '1002', '7001').
+            Must be exactly 4 digits.
+
+    Returns:
+        Error code details including message, solution, and link to the
+        error registry. Returns error if code format is invalid or not found.
+    """
+    return await lookup_error_code(code)
+
+
+##################################################
+## MCP Prompts
+## - https://modelcontextprotocol.io/docs/concepts/prompts
+##################################################
+
+
+@mcp.prompt()
+def explain_error(code: str) -> str:
+    """Look up a Qiskit error code and explain what it means and how to fix it."""
+    return (
+        f"Look up error code {code} using lookup_error_code_tool, then explain the "
+        "error in plain language and suggest how to fix it."
+    )
+
+
+@mcp.prompt()
+def module_overview(module: str) -> str:
+    """Get an overview of a Qiskit SDK module."""
+    return (
+        f"Fetch the documentation for the '{module}' module using get_page_tool with "
+        f"url 'api/qiskit/{module}', then provide a concise overview of the module's "
+        "purpose, key classes, and common usage patterns."
+    )
+
+
+@mcp.prompt()
+def how_to(task: str) -> str:
+    """Find documentation on how to accomplish a task with Qiskit."""
+    return (
+        f"Search for '{task}' using search_docs_tool, then fetch the most relevant "
+        "result using get_page_tool, and explain how to accomplish this task step by step."
+    )
+
+
+##################################################
+## MCP Resources
+## - https://modelcontextprotocol.io/docs/concepts/resources
+##################################################
+
+
+@mcp.resource("qiskit-docs://modules", mime_type="application/json")
+async def modules_resource() -> dict[str, Any]:
+    """Get list of all Qiskit SDK modules with URL paths.
+
+    Dynamically discovered from the documentation sitemap.
+    Use get_page_tool with 'api/qiskit/{module}' to fetch documentation,
+    or search_docs_tool to discover any module page.
+    """
+    return await get_list_of_modules()
+
+
+@mcp.resource("qiskit-docs://addons", mime_type="application/json")
+async def addons_resource() -> dict[str, Any]:
+    """Get list of Qiskit addon packages with URL paths.
+
+    Dynamically discovered from the documentation sitemap.
+    Use get_page_tool with 'api/qiskit-addon-{name}' to fetch documentation.
+    """
+    return await get_list_of_addons()
+
+
+@mcp.resource("qiskit-docs://guides", mime_type="application/json")
+async def guides_resource() -> dict[str, Any]:
+    """Get list of Qiskit implementation guides with URL paths.
+
+    Dynamically discovered from the documentation sitemap.
+    Use get_page_tool with 'guides/{name}' to fetch documentation,
+    or search_docs_tool to discover any guide.
+    """
+    return await get_list_of_guides()
+
+
+@mcp.resource("qiskit-docs://tutorials", mime_type="application/json")
+async def tutorials_resource() -> dict[str, Any]:
+    """Get list of Qiskit tutorials with URL paths.
+
+    Dynamically discovered from the documentation sitemap.
+    Use get_page_tool with 'tutorials/{name}' to fetch documentation.
+    """
+    return await get_list_of_tutorials()
+
+
+@mcp.resource("qiskit-docs://api-packages", mime_type="application/json")
+async def api_packages_resource() -> dict[str, Any]:
+    """Get list of API packages beyond SDK modules and addons.
+
+    Includes qiskit-ibm-runtime, qiskit-ibm-transpiler, REST API references, etc.
+    Dynamically discovered from the documentation sitemap.
+    Use get_page_tool with 'api/{name}' to fetch documentation.
+    """
+    return await get_list_of_api_packages()
+
+
+@mcp.resource("qiskit-docs://error-codes", mime_type="application/json")
+def error_codes_resource() -> dict[str, Any]:
+    """Get list of IBM Quantum error code categories and registry URL."""
+    return get_list_of_error_code_categories()
+
+
+##################################################
+## MCP Resource Templates
+## - https://modelcontextprotocol.io/docs/concepts/resources#resource-templates
+##################################################
+
+
+@mcp.resource("qiskit-docs://modules/{module_name}", mime_type="application/json")
+async def module_docs_resource(module_name: str) -> dict[str, Any]:
+    """Get documentation for a specific Qiskit SDK module."""
+    return await get_page_docs(f"api/qiskit/{module_name}")
+
+
+@mcp.resource("qiskit-docs://guides/{guide_name}", mime_type="application/json")
+async def guide_docs_resource(guide_name: str) -> dict[str, Any]:
+    """Get a specific Qiskit implementation guide."""
+    return await get_page_docs(f"guides/{guide_name}")
+
+
+@mcp.resource("qiskit-docs://addons/{addon_name}", mime_type="application/json")
+async def addon_docs_resource(addon_name: str) -> dict[str, Any]:
+    """Get documentation for a specific Qiskit addon package."""
+    return await get_page_docs(f"api/qiskit-addon-{addon_name}")

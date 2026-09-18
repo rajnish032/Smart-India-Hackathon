@@ -1,0 +1,514 @@
+# Publishing Guide
+
+This guide covers how to publish the Qiskit MCP servers to PyPI and the MCP Registry.
+
+## Packages
+
+This repository contains multiple PyPI packages:
+
+1. **qiskit-mcp-server** - MCP server for Qiskit quantum computing capabilities with circuit serialization utilities
+2. **qiskit-ibm-runtime-mcp-server** - MCP server for IBM Quantum Runtime
+3. **qiskit-ibm-transpiler-mcp-server** - MCP server for transpilation using the AI-powered transpiler passes.
+4. **qiskit-docs-mcp-server** - MCP server for Qiskit documentation retrieval and search
+5. **qiskit-gym-mcp-server** - MCP server for qiskit-gym reinforcement learning circuit synthesis
+6. **qiskit-mcp-servers** - Meta-package that installs all MCP servers
+
+> **Note:** A `qiskit-code-assistant-mcp-server` package previously lived in this monorepo. It was removed because the underlying Qiskit Code Assistant service has been [discontinued by IBM Quantum](https://quantum.cloud.ibm.com/announcements/en/product-updates/2026-04-28-qiskit-code-assistant-service-to-sunset). The PyPI package is archived.
+
+### Meta-Package
+
+The `qiskit-mcp-servers` meta-package provides a convenient way to install all servers at once:
+
+```bash
+# Install all MCP servers
+pip install qiskit-mcp-servers
+
+# Or install individual servers via extras
+pip install qiskit-mcp-servers[qiskit]           # Only Qiskit
+pip install qiskit-mcp-servers[runtime]          # Only Runtime
+pip install qiskit-mcp-servers[transpiler]       # Only Transpiler
+pip install qiskit-mcp-servers[docs]             # Only Docs
+pip install qiskit-mcp-servers[gym]              # Only Gym (community)
+```
+
+## Automated Publishing (Recommended)
+
+### Prerequisites
+
+To create releases using the automated approach, you'll need:
+
+- **Git**: For creating and pushing tags
+- **GitHub CLI (`gh`)**: For creating releases from the command line
+  - Install from https://cli.github.com/ or via package manager:
+    ```bash
+    # macOS
+    brew install gh
+
+    # Linux
+    sudo apt install gh  # Debian/Ubuntu
+    sudo dnf install gh  # Fedora
+
+    # Windows
+    winget install GitHub.cli
+    ```
+  - Authenticate with: `gh auth login`
+
+Alternatively, you can create releases manually through the GitHub web interface instead of using the `gh` CLI.
+
+### Setup: Configure Trusted Publishing
+
+**One-time setup** - Configure trusted publishing on PyPI (no API tokens needed):
+
+1. Go to PyPI and create the project (if it doesn't exist):
+   - For `qiskit-mcp-server`: https://pypi.org/manage/project/qiskit-mcp-server/settings/publishing/
+   - For `qiskit-ibm-runtime-mcp-server`: https://pypi.org/manage/project/qiskit-ibm-runtime-mcp-server/settings/publishing/
+   - For `qiskit-ibm-transpiler-mcp-server`: https://pypi.org/manage/project/qiskit-ibm-transpiler-mcp-server/settings/publishing/
+   - For `qiskit-docs-mcp-server`: https://pypi.org/manage/project/qiskit-docs-mcp-server/settings/publishing/
+   - For `qiskit-gym-mcp-server`: https://pypi.org/manage/project/qiskit-gym-mcp-server/settings/publishing/
+   - For `qiskit-mcp-servers`: https://pypi.org/manage/project/qiskit-mcp-servers/settings/publishing/
+
+2. Add a "trusted publisher" with these settings:
+   - **PyPI Project Name**: `qiskit-mcp-server` (or `qiskit-ibm-runtime-mcp-server`, `qiskit-ibm-transpiler-mcp-server`, `qiskit-docs-mcp-server`, `qiskit-gym-mcp-server`, or `qiskit-mcp-servers`)
+   - **Owner**: `Qiskit`
+   - **Repository**: `mcp-servers`
+   - **Workflow name**: `publish-pypi.yml`
+   - **Environment name**: (leave blank)
+
+### Publishing via GitHub Releases
+
+The workflow automatically publishes when you create a GitHub release. The tag name determines which package is published.
+
+#### Tag Naming Convention
+
+| Tag Pattern | Package Published |
+|-------------|-------------------|
+| `qiskit-v*` | qiskit-mcp-server |
+| `runtime-v*` | qiskit-ibm-runtime-mcp-server |
+| `transpiler-v*` | qiskit-ibm-transpiler-mcp-server |
+| `docs-v*` | qiskit-docs-mcp-server |
+| `gym-v*` | qiskit-gym-mcp-server |
+| `meta-v*` | qiskit-mcp-servers (meta-package) |
+
+#### Complete Release Workflow
+
+Follow these steps to release a package:
+
+##### Step 1: Update Version
+
+Edit the version in the appropriate `pyproject.toml`:
+- **Qiskit**: `qiskit-mcp-server/pyproject.toml`
+- **Runtime**: `qiskit-ibm-runtime-mcp-server/pyproject.toml`
+- **Transpiler**: `qiskit-ibm-transpiler-mcp-server/pyproject.toml`
+- **Docs**: `qiskit-docs-mcp-server/pyproject.toml`
+- **Gym**: `qiskit-gym-mcp-server/pyproject.toml`
+- **Meta-package**: `pyproject.toml` (root)
+
+##### Step 2: Commit and Push Changes
+
+```bash
+# Stage and commit the version change
+git add -A
+git commit -m "Bump qiskit-mcp-server to v0.1.1"
+
+# Push to main branch
+git push origin main
+```
+
+##### Step 3: Create and Push Tag
+
+```bash
+# Create an annotated tag
+git tag -a qiskit-v0.1.1 -m "Release qiskit-mcp-server v0.1.1"
+
+# Push the tag to GitHub
+git push origin qiskit-v0.1.1
+```
+
+##### Step 4: Create GitHub Release
+
+```bash
+# Create the release (this triggers the publish workflow)
+gh release create qiskit-v0.1.1 \
+  --title "qiskit-mcp-server v0.1.1" \
+  --generate-notes
+```
+
+Or use `--notes "Your release notes here"` instead of `--generate-notes` for custom notes.
+
+#### Quick Reference Examples
+
+**Qiskit Server:**
+```bash
+# After updating version in qiskit-mcp-server/pyproject.toml
+git add -A && git commit -m "Bump qiskit-mcp-server to v0.1.1" && git push origin main
+git tag -a qiskit-v0.1.1 -m "Release v0.1.1" && git push origin qiskit-v0.1.1
+gh release create qiskit-v0.1.1 --title "qiskit-mcp-server v0.1.1" --generate-notes
+```
+
+**Runtime Server:**
+```bash
+# After updating version in qiskit-ibm-runtime-mcp-server/pyproject.toml
+git add -A && git commit -m "Bump runtime to v0.1.1" && git push origin main
+git tag -a runtime-v0.1.1 -m "Release v0.1.1" && git push origin runtime-v0.1.1
+gh release create runtime-v0.1.1 --title "qiskit-ibm-runtime-mcp-server v0.1.1" --generate-notes
+```
+
+**Transpiler Server:**
+```bash
+# After updating version in qiskit-ibm-transpiler-mcp-server/pyproject.toml
+git add -A && git commit -m "Bump transpiler to v0.1.0" && git push origin main
+git tag -a transpiler-v0.1.0 -m "Release v0.1.0" && git push origin transpiler-v0.1.0
+gh release create transpiler-v0.1.0 --title "qiskit-ibm-transpiler-mcp-server v0.1.0" --generate-notes
+```
+
+**Docs Server:**
+```bash
+# After updating version in qiskit-docs-mcp-server/pyproject.toml
+git add -A && git commit -m "Bump docs to v0.1.0" && git push origin main
+git tag -a docs-v0.1.0 -m "Release v0.1.0" && git push origin docs-v0.1.0
+gh release create docs-v0.1.0 --title "qiskit-docs-mcp-server v0.1.0" --generate-notes
+```
+
+**Gym Server:**
+```bash
+# After updating version in qiskit-gym-mcp-server/pyproject.toml
+git add -A && git commit -m "Bump gym to v0.1.0" && git push origin main
+git tag -a gym-v0.1.0 -m "Release v0.1.0" && git push origin gym-v0.1.0
+gh release create gym-v0.1.0 --title "qiskit-gym-mcp-server v0.1.0" --generate-notes
+```
+
+**Meta-Package:**
+```bash
+# After updating version in pyproject.toml (root)
+git add -A && git commit -m "Bump meta-package to v0.1.1" && git push origin main
+git tag -a meta-v0.1.1 -m "Release v0.1.1" && git push origin meta-v0.1.1
+gh release create meta-v0.1.1 --title "qiskit-mcp-servers v0.1.1" --generate-notes
+```
+
+### Manual Workflow Trigger
+
+You can also trigger publishing manually via GitHub Actions using the CLI:
+
+```bash
+# Publish all packages (individual servers + meta-package)
+gh workflow run "Publish to PyPI" -f package=all
+
+# Publish only qiskit
+gh workflow run "Publish to PyPI" -f package=qiskit
+
+# Publish only runtime
+gh workflow run "Publish to PyPI" -f package=runtime
+
+# Publish only transpiler
+gh workflow run "Publish to PyPI" -f package=transpiler
+
+# Publish only docs
+gh workflow run "Publish to PyPI" -f package=docs
+
+# Publish only gym
+gh workflow run "Publish to PyPI" -f package=gym
+
+# Publish only meta-package
+gh workflow run "Publish to PyPI" -f package=meta-package
+```
+
+Alternatively, you can trigger via the GitHub web interface:
+
+1. Go to **Actions** → **Publish to PyPI**
+2. Click **Run workflow**
+3. Select which package to publish: `all`, `meta-package`, `qiskit`, `runtime`, `transpiler`, `docs`, or `gym`
+
+## Manual Publishing
+
+### Prerequisites
+
+**Python version**: Python 3.10 or higher is required (as specified in each mcp-server `pyproject.toml`).
+
+Install build tools:
+```bash
+pip install build twine
+```
+
+Or use `uv` (recommended):
+```bash
+pip install uv
+```
+
+### Step-by-Step Manual Publishing
+
+#### 1. Update Version
+
+Edit the version in `pyproject.toml`:
+- **Qiskit**: `qiskit-mcp-server/pyproject.toml`
+- **Runtime**: `qiskit-ibm-runtime-mcp-server/pyproject.toml`
+- **Transpiler**: `qiskit-ibm-transpiler-mcp-server/pyproject.toml`
+- **Docs**: `qiskit-docs-mcp-server/pyproject.toml`
+- **Gym**: `qiskit-gym-mcp-server/pyproject.toml`
+- **Meta-package**: `pyproject.toml` (root)
+
+#### 2. Build the Package
+
+**For Qiskit:**
+```bash
+cd qiskit-mcp-server
+
+# Build with uv (recommended)
+uv build
+
+# Or with build
+python -m build
+```
+
+**For Runtime:**
+```bash
+cd qiskit-ibm-runtime-mcp-server
+
+# Build with uv (recommended)
+uv build
+
+# Or with build
+python -m build
+```
+
+**For Transpiler:**
+```bash
+cd qiskit-ibm-transpiler-mcp-server
+
+# Build with uv (recommended)
+uv build
+
+# Or with build
+python -m build
+```
+
+**For Docs:**
+```bash
+cd qiskit-docs-mcp-server
+
+# Build with uv (recommended)
+uv build
+
+# Or with build
+python -m build
+```
+
+**For Gym:**
+```bash
+cd qiskit-gym-mcp-server
+
+# Build with uv (recommended)
+uv build
+
+# Or with build
+python -m build
+```
+
+**For Meta-Package:**
+```bash
+# From repository root
+uv build
+
+# Or with build
+python -m build
+```
+
+This creates `.whl` and `.tar.gz` files in the `dist/` directory.
+
+#### 3. Verify the Build
+
+Check the contents:
+```bash
+# List files in the wheel
+unzip -l dist/*.whl
+
+# Check package metadata
+twine check dist/*
+```
+
+#### 4. Upload to PyPI
+
+**Test on TestPyPI first (recommended):**
+```bash
+# Upload to TestPyPI
+twine upload --repository testpypi dist/*
+
+# Test installation
+pip install --index-url https://test.pypi.org/simple/ qiskit-mcp-server
+# or
+pip install --index-url https://test.pypi.org/simple/ qiskit-ibm-runtime-mcp-server
+# or
+pip install --index-url https://test.pypi.org/simple/ qiskit-ibm-transpiler-mcp-server
+# or
+pip install --index-url https://test.pypi.org/simple/ qiskit-docs-mcp-server
+# or
+pip install --index-url https://test.pypi.org/simple/ qiskit-gym-mcp-server
+```
+
+**Upload to production PyPI:**
+```bash
+# With twine
+twine upload dist/*
+
+# Or with uv
+uv publish
+```
+
+You'll be prompted for your PyPI username and password (or API token).
+
+#### 5. Verify Installation
+
+```bash
+# For Qiskit
+pip install qiskit-mcp-server
+
+# For Runtime
+pip install qiskit-ibm-runtime-mcp-server
+
+# For Transpiler
+pip install qiskit-ibm-transpiler-mcp-server
+
+# For Docs
+pip install qiskit-docs-mcp-server
+
+# For Gym
+pip install qiskit-gym-mcp-server
+
+# For Meta-Package (installs all servers)
+pip install qiskit-mcp-servers
+```
+
+## Version Management
+
+### Versioning Strategy
+
+All packages use **semantic versioning**: `MAJOR.MINOR.PATCH`
+
+- **MAJOR**: Breaking changes to the API
+- **MINOR**: New features, backward compatible
+- **PATCH**: Bug fixes, backward compatible
+
+### Current Versions
+
+The current version for each package is defined in their respective `pyproject.toml` files:
+
+- **qiskit-mcp-server**: See [qiskit-mcp-server/pyproject.toml](qiskit-mcp-server/pyproject.toml) (search for `version =`)
+- **qiskit-ibm-runtime-mcp-server**: See [qiskit-ibm-runtime-mcp-server/pyproject.toml](qiskit-ibm-runtime-mcp-server/pyproject.toml) (search for `version =`)
+- **qiskit-ibm-transpiler-mcp-server**: See [qiskit-ibm-transpiler-mcp-server/pyproject.toml](qiskit-ibm-transpiler-mcp-server/pyproject.toml) (search for `version =`)
+- **qiskit-docs-mcp-server**: See [qiskit-docs-mcp-server/pyproject.toml](qiskit-docs-mcp-server/pyproject.toml) (search for `version =`)
+- **qiskit-gym-mcp-server**: See [qiskit-gym-mcp-server/pyproject.toml](qiskit-gym-mcp-server/pyproject.toml) (search for `version =`)
+- **qiskit-mcp-servers**: See [pyproject.toml](pyproject.toml) (search for `version =`)
+
+## Pre-Publication Checklist
+
+Before publishing, ensure:
+
+- [ ] Version number updated in `pyproject.toml`
+- [ ] Version number updated in `server.json` (must match `pyproject.toml`)
+- [ ] All tests pass: `./run_tests.sh`
+- [ ] Code is formatted: `uv run ruff format`
+- [ ] Linting passes: `uv run ruff check`
+- [ ] Type checking passes: `uv run mypy src`
+- [ ] README is up to date
+- [ ] CHANGELOG updated (if you have one)
+- [ ] Git commit and tag created
+
+## Troubleshooting
+
+### "Package already exists" error
+
+You cannot overwrite a version on PyPI. You must:
+1. Increment the version number in `pyproject.toml`
+2. Rebuild and upload
+
+### Authentication issues
+
+For manual uploads, create a PyPI API token:
+1. Go to https://pypi.org/manage/account/token/
+2. Create a token with upload permissions
+3. Use `__token__` as username and the token as password
+
+Or configure in `~/.pypirc`:
+```ini
+[pypi]
+username = __token__
+password = pypi-YOUR-API-TOKEN-HERE
+```
+
+### Build artifacts in wrong location
+
+Make sure you're running build commands from the package directory:
+```bash
+cd qiskit-mcp-server  # or qiskit-docs-mcp-server, qiskit-gym-mcp-server, etc.
+uv build
+```
+
+## MCP Registry Publishing
+
+In addition to PyPI, servers are also published to the [MCP Registry](https://registry.modelcontextprotocol.io) for discoverability by MCP clients.
+
+### Automated Publishing
+
+MCP Registry publishing is automated via GitHub Actions and triggers alongside PyPI publishing:
+
+- **Workflow**: `.github/workflows/publish-mcp-registry.yml`
+- **Authentication**: GitHub OIDC (no secrets required)
+- **Trigger**: Same release tags as PyPI (`qiskit-v*`, `runtime-v*`, etc.)
+
+When you create a GitHub release, both workflows trigger automatically:
+1. `publish-pypi.yml` → publishes to PyPI
+2. `publish-mcp-registry.yml` → publishes to MCP Registry
+
+### Manual Trigger
+
+```bash
+# Publish all servers to MCP Registry
+gh workflow run "Publish to MCP Registry" -f package=all
+
+# Publish specific server
+gh workflow run "Publish to MCP Registry" -f package=qiskit
+gh workflow run "Publish to MCP Registry" -f package=runtime
+gh workflow run "Publish to MCP Registry" -f package=transpiler
+gh workflow run "Publish to MCP Registry" -f package=docs
+gh workflow run "Publish to MCP Registry" -f package=gym
+```
+
+### server.json Configuration
+
+Each server has a `server.json` file that defines its MCP Registry metadata:
+
+```json
+{
+  "$schema": "https://static.modelcontextprotocol.io/schemas/draft/server.schema.json",
+  "name": "io.github.qiskit/qiskit-<name>-mcp-server",
+  "title": "Human-readable title",
+  "description": "Short description (max 100 chars)",
+  "version": "0.1.0",
+  "packages": [...]
+}
+```
+
+**Important**: When releasing a new version, update both:
+1. `pyproject.toml` - version field
+2. `server.json` - version field (must match)
+
+### Validating server.json
+
+Before committing, validate against the schema:
+
+```bash
+npx ajv-cli validate -s /tmp/server.schema.json -d server.json --spec=draft7 --strict=false
+```
+
+Or download the schema first:
+```bash
+curl -sS "https://raw.githubusercontent.com/modelcontextprotocol/registry/main/docs/reference/server-json/server.schema.json" -o /tmp/server.schema.json
+```
+
+## Resources
+
+- [PyPI Publishing Guide](https://packaging.python.org/tutorials/packaging-projects/)
+- [Trusted Publishers (PyPI)](https://docs.pypi.org/trusted-publishers/)
+- [MCP Registry](https://registry.modelcontextprotocol.io)
+- [MCP server.json Schema](https://github.com/modelcontextprotocol/registry/blob/main/docs/reference/server-json/server.schema.json)
+- [Semantic Versioning](https://semver.org/)
+- [GitHub Actions - PyPI Publish](https://github.com/marketplace/actions/pypi-publish)

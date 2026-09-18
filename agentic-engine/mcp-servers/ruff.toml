@@ -1,0 +1,196 @@
+# Ruff configuration for qiskit-mcp-servers monorepo
+# https://docs.astral.sh/ruff/configuration/
+
+# Exclude common directories
+exclude = [
+    ".bzr",
+    ".direnv",
+    ".eggs",
+    ".git",
+    ".git-rewrite",
+    ".hg",
+    ".ipynb_checkpoints",
+    ".mypy_cache",
+    ".nox",
+    ".pants.d",
+    ".pyenv",
+    ".pytest_cache",
+    ".pytype",
+    ".ruff_cache",
+    ".svn",
+    ".tox",
+    ".venv",
+    ".vscode",
+    "__pypackages__",
+    "_build",
+    "buck-out",
+    "build",
+    "dist",
+    "node_modules",
+    "site-packages",
+    "venv",
+]
+
+# Line length
+line-length = 100
+indent-width = 4
+
+# Target Python 3.10+
+target-version = "py310"
+
+[lint]
+# Enable additional rule sets for comprehensive linting
+select = [
+    "E",      # pycodestyle errors
+    "W",      # pycodestyle warnings
+    "F",      # pyflakes
+    "I",      # isort (import sorting)
+    "N",      # pep8-naming
+    "UP",     # pyupgrade
+    "RUF",    # Ruff-specific rules
+    "B",      # flake8-bugbear
+    "C4",     # flake8-comprehensions
+    "SIM",    # flake8-simplify
+    "TCH",    # flake8-type-checking
+    "PTH",    # flake8-use-pathlib
+    "ERA",    # eradicate (commented-out code)
+    "PL",     # pylint
+    "PERF",   # perflint (performance)
+]
+
+# Ignore specific rules that may be too strict
+ignore = [
+    "E501",    # Line too long (handled by formatter)
+    "PLR0913", # Too many arguments
+    "PLR2004", # Magic value used in comparison
+    "SIM108",  # Use ternary operator (sometimes less readable)
+]
+
+# Allow fix for all enabled rules (when `--fix` is provided)
+fixable = ["ALL"]
+unfixable = []
+
+# Allow unused variables when underscore-prefixed
+dummy-variable-rgx = "^(_+|(_+[a-zA-Z0-9_]*[a-zA-Z0-9]+?))$"
+
+[lint.per-file-ignores]
+# Ignore certain rules in test files (both servers)
+"**/tests/**/*.py" = [
+    "PLR2004",  # Magic values are common in tests
+    "S101",     # Use of assert
+    "S105",     # Possible hardcoded password
+    "S106",     # Possible hardcoded password
+    "PLC0415",  # Import outside top-level (common in test fixtures)
+    "PTH123",   # open() vs Path.open() (less critical in tests)
+    "SIM117",   # Nested with statements (sometimes clearer in tests)
+]
+
+# Ignore import rules in __init__.py files
+"**/__init__.py" = [
+    "F401",  # Unused imports (re-exports)
+    "F403",  # Star imports
+]
+
+# Ignore global variable and performance warnings in ibm_runtime.py (intentional design)
+"**/ibm_runtime.py" = [
+    "PLW0602",  # Global variable usage without assignment
+    "PLW0603",  # Global variable updates
+    "PERF203",  # Try-except in loop (necessary for error handling)
+]
+
+# Ignore specific patterns in utils.py (both servers)
+"**/utils.py" = [
+    "PLW0603",  # Global variable updates (HTTP client singleton pattern)
+    "PTH123",   # open() vs Path.open() (reading JSON credentials)
+    "PLC0415",  # Import inside function (asyncio for retry logic)
+    "PERF203",  # Try-except in loop (retry mechanism)
+]
+
+# Ignore specific patterns in server.py
+"**/server.py" = [
+    "PLC0415",  # Import inside cleanup function (asyncio)
+]
+
+# qiskit-gym-mcp-server specific ignores (intentional lazy loading)
+"**/qiskit_gym_mcp_server/gym_core.py" = [
+    "PLC0415",  # Import inside function (lazy loading qiskit-gym)
+    "PLR0912",  # Too many branches (gateset parsing)
+    "C401",     # Set comprehension (readability preference)
+]
+"**/qiskit_gym_mcp_server/training.py" = [
+    "PLC0415",  # Import inside function (lazy loading qiskit-gym)
+    "PLR0911",  # Too many return statements (async training logic)
+]
+"**/qiskit_gym_mcp_server/synthesis.py" = [
+    "PLC0415",  # Import inside function (lazy loading)
+    "PLR0911",  # Too many return statements (validation)
+    "RUF046",   # Int cast on det (numpy type handling)
+]
+"**/qiskit_gym_mcp_server/models.py" = [
+    "PLC0415",  # Import inside function (lazy loading qiskit-gym)
+    "PTH107",   # os.remove (backward compatibility)
+    "PTH123",   # open() (config file reading)
+]
+"**/qiskit_gym_mcp_server/coupling_maps.py" = [
+    "PLC0415",  # Import inside function (math, random)
+    "PLR0912",  # Too many branches (subgraph algorithm)
+    "PLR0915",  # Too many statements (subgraph algorithm)
+    "C401",     # Generator vs comprehension (readability)
+    "SIM102",   # Nested if statements (topology detection logic)
+    "PERF401",  # List comprehension (readability in loop)
+]
+
+# Ignore certain rules in examples (intended patterns for demonstration code)
+"**/examples/**/*.py" = [
+    "PLC0415",  # Import inside function (lazy loading for optional providers)
+    "PLR0911",  # Too many return statements
+    "PLR0912",  # Too many branches
+    "PLR0915",  # Too many statements
+    "PERF203",  # Try-except in loop (error handling per server)
+    "RUF059",   # Unused unpacked variable (mcp_client for cleanup)
+    "SIM118",   # dict.keys() iteration (more explicit)
+    "B007",     # Unused loop variable (intentional in examples)
+    "TCH002",   # Type-checking import (BaseChatModel for type hint)
+]
+
+# Same ignores for Jupyter notebooks in examples
+"**/examples/**/*.ipynb" = [
+    "PLC0415",  # Import inside function
+    "PERF203",  # Try-except in loop
+    "RUF059",   # Unused unpacked variable
+    "B007",     # Unused loop variable
+    "I001",     # Import sorting (cell-by-cell execution doesn't need strict sorting)
+    "W293",     # Blank lines with whitespace (notebook formatting)
+    "ERA001",   # Commented out code (examples for users to uncomment)
+]
+
+[lint.isort]
+known-first-party = ["qiskit_ibm_runtime_mcp_server", "qiskit_gym_mcp_server"]
+force-single-line = false
+lines-after-imports = 2
+section-order = ["future", "standard-library", "third-party", "first-party", "local-folder"]
+
+[lint.mccabe]
+# Maximum cyclomatic complexity
+max-complexity = 10
+
+[lint.pydocstyle]
+# Use Google-style docstrings
+convention = "google"
+
+[format]
+# Use double quotes for strings
+quote-style = "double"
+
+# Indent with spaces
+indent-style = "space"
+
+# Respect magic trailing comma
+skip-magic-trailing-comma = false
+
+# Auto-detect line ending
+line-ending = "auto"
+
+# Enable auto-formatting of code examples in docstrings
+docstring-code-format = true
+docstring-code-line-length = 80
