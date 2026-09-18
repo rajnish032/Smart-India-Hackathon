@@ -1,5 +1,6 @@
 import './globals.css';
-import { ThemeProvider } from '../components/ThemeProvider';
+import { ThemeProvider } from '../components/shared/ThemeProvider';
+import ToastProvider from '../components/shared/ToastProvider';
 
 export const metadata = {
   title: 'Quantum Learning Platform',
@@ -11,6 +12,7 @@ export default function RootLayout({ children }) {
     <html lang="en" suppressHydrationWarning>
       <body>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem>
+          <ToastProvider />
           {children}
         </ThemeProvider>
       </body>

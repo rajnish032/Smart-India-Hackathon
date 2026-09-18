@@ -40,12 +40,19 @@ const ALERT_STYLES = {
 
 const QUICK_ACTIONS = [
   { label: 'New Course', icon: LuBookOpen, tab: 'courses', color: 'from-violet-600 to-violet-700', shadow: 'shadow-violet-500/20' },
-  { label: 'New Lesson', icon: LuFileText, tab: 'course-builder', color: 'from-cyan-600 to-cyan-700', shadow: 'shadow-cyan-500/20' },
+  { label: 'New Lesson', icon: LuFileText, tab: 'lesson-builder', color: 'from-cyan-600 to-cyan-700', shadow: 'shadow-cyan-500/20' },
   { label: 'New Quiz', icon: LuStar, tab: 'quiz-builder', color: 'from-amber-500 to-amber-600', shadow: 'shadow-amber-500/20' },
   { label: 'New Challenge', icon: LuZap, tab: 'challenge-builder', color: 'from-pink-600 to-pink-700', shadow: 'shadow-pink-500/20' },
 ];
 
-export default function InstructorOverview({ user, portalData, onTabChange }) {
+// Map alert action labels to handler keys
+const ALERT_ACTION_HANDLERS = {
+  'Grade Now': 'grading',
+  'View Students': 'students',
+  'Review': 'courseBuilder',
+};
+
+export default function InstructorOverview({ user, portalData, onTabChange, onOpenBuilder, onOpenLesson, onOpenQuiz, onOpenChallenge, onOpenStudents }) {
   const data = portalData || {};
   const recentActivity = data.recentActivity || [];
   const alerts = data.alerts || [];
@@ -145,10 +152,23 @@ export default function InstructorOverview({ user, portalData, onTabChange }) {
           <div className="grid grid-cols-2 gap-3">
             {QUICK_ACTIONS.map((action) => {
               const Icon = action.icon;
+              const handleQuickAction = () => {
+                if (action.label === 'New Course') {
+                  onTabChange && onTabChange('courses');
+                } else if (action.label === 'New Lesson' && onOpenLesson) {
+                  onOpenLesson({});
+                } else if (action.label === 'New Quiz' && onOpenQuiz) {
+                  onOpenQuiz({});
+                } else if (action.label === 'New Challenge' && onOpenChallenge) {
+                  onOpenChallenge({});
+                } else {
+                  onTabChange && onTabChange(action.tab);
+                }
+              };
               return (
                 <button
                   key={action.label}
-                  onClick={() => onTabChange && onTabChange(action.tab)}
+                  onClick={handleQuickAction}
                   className={`p-4 rounded-2xl bg-gradient-to-br ${action.color} text-white shadow-lg ${action.shadow} hover:opacity-90 hover:scale-[1.03] transition-all duration-200 text-left space-y-2 cursor-pointer`}
                 >
                   <Icon size={18} />
@@ -198,7 +218,21 @@ export default function InstructorOverview({ user, portalData, onTabChange }) {
                     </div>
                   </div>
                   {alert.action && (
-                    <button className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${style.btnColor} transition-colors cursor-pointer`}>
+                    <button
+                      onClick={() => {
+                        const action = alert.action;
+                        if (action === 'Grade Now' && onOpenStudents) {
+                          onOpenStudents({ focusGrading: true });
+                        } else if (action === 'View Students' && onOpenStudents) {
+                          onOpenStudents({});
+                        } else if (action === 'Review' && onTabChange) {
+                          onTabChange('course-builder');
+                        } else if (onTabChange) {
+                          onTabChange('students');
+                        }
+                      }}
+                      className={`text-[10px] font-bold px-2.5 py-1 rounded-lg ${style.btnColor} transition-colors cursor-pointer`}
+                    >
                       {alert.action} →
                     </button>
                   )}

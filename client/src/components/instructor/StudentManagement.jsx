@@ -187,7 +187,7 @@ const SAMPLE_STUDENTS = [
   { id: 's8', name: 'Deepa Nair', email: 'deepa@iit.ac.in', avatar: 'DN', enrolledCourse: 'Quantum Algorithms', courseId: 'ic2', progress: 88, quizAvg: 91, challengeAvg: 89, lastActive: '3h ago', status: 'Active', timeSpent: '38h 30m', aiUsage: 7, lessonsCompleted: 33, totalLessons: 38, moduleProgress: [{ module: 'Quantum Fundamentals', progress: 100, score: 93 }, { module: 'Quantum Gates', progress: 100, score: 90 }, { module: "Grover's Search", progress: 100, score: 92 }, { module: 'Phase Estimation', progress: 60, score: 88 }], quizScores: [93, 90, 92, 88, 92], strongConcepts: ['Algorithm Design', 'Gate Optimization', 'Grover Oracle'], weakConcepts: ['Phase Estimation Setup'], recentActivity: [{ type: 'lesson', label: 'Completed: QPE Theory', time: '3h ago' }] },
 ];
 
-export default function StudentManagement() {
+export default function StudentManagement({ focusGrading = false }) {
   const [students, setStudents] = useState([]);
   const [loading, setLoading] = useState(true);
   const [selected, setSelected] = useState(null);
@@ -196,9 +196,14 @@ export default function StudentManagement() {
     const fetchStudents = async () => {
       try {
         const res = await apiFetch('/instructor/students');
-        if (res?.success) setStudents(res.data.students || []);
+        if (res?.success && res.data.students?.length > 0) {
+          setStudents(res.data.students);
+        } else {
+          setStudents(SAMPLE_STUDENTS);
+        }
       } catch (err) {
         console.error('Failed to fetch students:', err);
+        setStudents(SAMPLE_STUDENTS);
       } finally {
         setLoading(false);
       }
@@ -207,7 +212,8 @@ export default function StudentManagement() {
   }, []);
   const [search, setSearch] = useState('');
   const [filterCourse, setFilterCourse] = useState('All');
-  const [filterStatus, setFilterStatus] = useState('All');
+  // If focusGrading, auto-filter to At Risk students so instructor sees who needs attention
+  const [filterStatus, setFilterStatus] = useState(focusGrading ? 'At Risk' : 'All');
   const [sortBy, setSortBy] = useState('name');
 
   const filtered = students

@@ -8,3 +8,4 @@ export { default as StudentManagement } from './StudentManagement';
 export { default as InstructorAnalytics } from './InstructorAnalytics';
 export { default as ContentManagement } from './ContentManagement';
 export { default as InstructorSettings } from './InstructorSettings';
+export { default as CoursePreview } from './CoursePreview';

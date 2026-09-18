@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   LuZap, LuPlus, LuTrash2, LuCheck, LuX, LuSave, LuEye,
   LuSettings, LuCode, LuCpu, LuTriangleAlert, LuArrowRight,
-  LuPlay, LuTarget, LuLightbulb, LuToggleLeft, LuToggleRight,
+  LuPlay, LuTarget, LuLightbulb, LuToggleLeft, LuToggleRight, LuArrowLeft,
 } from 'react-icons/lu';
 import { apiFetch } from '../../services/api';
 
@@ -14,7 +14,7 @@ const DIFFICULTY_STYLES = {
   Advanced: 'bg-rose-500/15 text-rose-400 border-rose-500/30',
 };
 
-export default function ChallengeBuilder() {
+export default function ChallengeBuilder({ courseId, moduleId, challengeId, onBack }) {
   const [form, setForm] = useState({
     title: 'Bell State Circuit Challenge',
     difficulty: 'Beginner',
@@ -47,7 +47,11 @@ export default function ChallengeBuilder() {
 
   const handleSave = async () => {
     try {
-      await apiFetch('/instructor/challenges', { method: 'POST', body: JSON.stringify(form) });
+      if (challengeId) {
+        await apiFetch(`/instructor/challenges/${challengeId}`, { method: 'PUT', body: JSON.stringify({ ...form, moduleId, courseId }) });
+      } else {
+        await apiFetch('/instructor/challenges', { method: 'POST', body: JSON.stringify({ ...form, moduleId, courseId }) });
+      }
     } catch { /* optimistic */ }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -56,6 +60,12 @@ export default function ChallengeBuilder() {
   if (previewMode) {
     return (
       <div className="space-y-6 animate-fadeIn">
+        {onBack && (
+          <button onClick={onBack} className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted)] hover:text-violet-400 transition-colors cursor-pointer group">
+            <LuArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
+            Back to Course Builder
+          </button>
+        )}
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <LuPlay size={14} className="text-pink-400" />
@@ -117,6 +127,16 @@ export default function ChallengeBuilder() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* Back nav */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted)] hover:text-violet-400 transition-colors cursor-pointer group"
+        >
+          <LuArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
+          Back to Course Builder
+        </button>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">

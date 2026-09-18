@@ -4,5 +4,4 @@ export { default as ExperimentsView } from './ExperimentsView.jsx';
 export { default as BackendCompareView } from './BackendCompareView.jsx';
 export { default as SimulationHistoryView } from './SimulationHistoryView.jsx';
 export { default as SavedCircuitsView } from './SavedCircuitsView.jsx';
-export { default as ActiveStudyTracker } from './ActiveStudyTracker.jsx';
 

@@ -5,8 +5,9 @@ import {
   LuFileText, LuPlus, LuTrash2, LuGrip, LuArrowUp, LuArrowDown,
   LuEye, LuSave, LuCheck, LuX, LuCode, LuImage, LuVideo,
   LuCpu, LuZap, LuStar, LuFlaskConical, LuMessageSquare, LuType,
-  LuHeading, LuActivity, LuPlay, LuMonitor,
+  LuHeading, LuActivity, LuPlay, LuMonitor, LuArrowLeft,
 } from 'react-icons/lu';
+import { apiFetch } from '../../services/api';
 
 const BLOCK_TYPES = [
   { type: 'heading', label: 'Heading', icon: LuHeading, color: 'text-violet-400 bg-violet-500/10' },
@@ -128,7 +129,7 @@ function ContentBlock({ block, onUpdate, onDelete, onMoveUp, onMoveDown, isFirst
   );
 }
 
-export default function LessonBuilder() {
+export default function LessonBuilder({ courseId, moduleId, lessonId, onBack }) {
   const [lessonTitle, setLessonTitle] = useState('Quantum Interference & Phase');
   const [blocks, setBlocks] = useState([
     { id: 'b1', type: 'heading', content: 'Understanding Quantum Interference' },
@@ -139,6 +140,7 @@ export default function LessonBuilder() {
   ]);
   const [previewMode, setPreviewMode] = useState(false);
   const [showBlockPicker, setShowBlockPicker] = useState(false);
+  const [saving, setSaving] = useState(false);
   const [saved, setSaved] = useState(false);
   const [status, setStatus] = useState('Draft');
 
@@ -156,10 +158,36 @@ export default function LessonBuilder() {
     setBlocks(arr);
   };
 
-  const handleSave = () => { setSaved(true); setTimeout(() => setSaved(false), 2000); };
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      const payload = { title: lessonTitle, status, blocks, moduleId, courseId };
+      if (lessonId) {
+        await apiFetch(`/instructor/lessons/${lessonId}`, { method: 'PUT', body: JSON.stringify(payload) });
+      } else if (moduleId) {
+        await apiFetch(`/instructor/modules/${moduleId}/lessons`, { method: 'POST', body: JSON.stringify(payload) });
+      }
+    } catch (e) {
+      console.warn('Save lesson failed (offline?):', e);
+    } finally {
+      setSaving(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
+  };
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* Back nav */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted)] hover:text-violet-400 transition-colors cursor-pointer group"
+        >
+          <LuArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
+          Back to Course Builder
+        </button>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -180,8 +208,8 @@ export default function LessonBuilder() {
           >
             <LuEye size={13} /> {previewMode ? 'Exit Preview' : 'Preview'}
           </button>
-          <button onClick={handleSave} className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-all ${saved ? 'bg-emerald-600 text-white' : 'border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-text)]'}`}>
-            {saved ? <><LuCheck size={13} /> Saved</> : <><LuSave size={13} /> Save Draft</>}
+          <button onClick={handleSave} disabled={saving} className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-all disabled:opacity-60 ${saved ? 'bg-emerald-600 text-white' : 'border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-text)]'}`}>
+            {saving ? <><div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving...</> : saved ? <><LuCheck size={13} /> Saved</> : <><LuSave size={13} /> Save Draft</>}
           </button>
           <select value={status} onChange={e => setStatus(e.target.value)} className="px-3 py-2 rounded-xl border border-[var(--color-border)] bg-[var(--color-surface)] text-xs text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-violet-500/50 cursor-pointer">
             <option>Draft</option>

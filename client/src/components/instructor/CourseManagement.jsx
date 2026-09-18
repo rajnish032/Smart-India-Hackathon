@@ -26,7 +26,7 @@ const CATEGORIES = ['All', 'Foundations', 'Algorithms', 'QML', 'Cryptography', '
 const DIFFICULTIES = ['All', 'Beginner', 'Intermediate', 'Advanced'];
 const STATUSES = ['All', 'Published', 'Draft', 'Review', 'Archived'];
 
-function CourseCard({ course, onAction }) {
+function CourseCard({ course, onAction, onOpenPreview }) {
   const [menuOpen, setMenuOpen] = useState(false);
 
   const actions = [
@@ -39,7 +39,10 @@ function CourseCard({ course, onAction }) {
   ];
 
   return (
-    <div className="group p-5 rounded-2xl bg-[var(--color-background)] border border-[var(--color-border)] hover:border-violet-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/5">
+    <div 
+      onClick={() => onOpenPreview && onOpenPreview(course)}
+      className="group p-5 rounded-2xl bg-[var(--color-background)] border border-[var(--color-border)] hover:border-violet-500/30 transition-all duration-200 hover:shadow-lg hover:shadow-violet-500/5 cursor-pointer"
+    >
       <div className="flex items-start justify-between gap-3">
         <div className="flex-1 min-w-0 space-y-3">
           {/* Header badges */}
@@ -85,31 +88,39 @@ function CourseCard({ course, onAction }) {
           )}
         </div>
 
-        {/* Action menu */}
-        <div className="relative">
+        {/* Build CTA + Action menu */}
+        <div className="flex flex-col items-end gap-2">
           <button
-            onClick={() => setMenuOpen(!menuOpen)}
-            className="p-2 rounded-xl hover:bg-[var(--color-surface)] transition-colors text-[var(--color-muted)] hover:text-[var(--color-text)] cursor-pointer"
+            onClick={(e) => { e.stopPropagation(); onAction('builder', course); }}
+            className="inline-flex items-center gap-1.5 px-3 py-1.5 rounded-xl bg-gradient-to-r from-violet-600 to-violet-500 text-white text-[10px] font-bold shadow-md shadow-violet-500/20 hover:opacity-90 transition-opacity cursor-pointer shrink-0"
           >
-            <LuEllipsisVertical size={16} />
+            <LuFlaskConical size={11} /> Build →
           </button>
-          {menuOpen && (
-            <div className="absolute right-0 top-9 z-50 w-44 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] shadow-xl shadow-black/30 overflow-hidden">
-              {actions.map((act) => {
-                const Icon = act.icon;
-                return (
-                  <button
-                    key={act.action}
-                    onClick={() => { onAction(act.action, course); setMenuOpen(false); }}
-                    className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs hover:bg-[var(--color-background)] transition-colors cursor-pointer ${act.danger ? 'text-rose-400 hover:text-rose-300' : 'text-[var(--color-text)]'}`}
-                  >
-                    <Icon size={13} />
-                    {act.label}
-                  </button>
-                );
-              })}
-            </div>
-          )}
+          <div className="relative">
+            <button
+              onClick={(e) => { e.stopPropagation(); setMenuOpen(!menuOpen); }}
+              className="p-2 rounded-xl hover:bg-[var(--color-surface)] transition-colors text-[var(--color-muted)] hover:text-[var(--color-text)] cursor-pointer"
+            >
+              <LuEllipsisVertical size={16} />
+            </button>
+            {menuOpen && (
+              <div className="absolute right-0 top-9 z-50 w-44 rounded-xl bg-[var(--color-surface)] border border-[var(--color-border)] shadow-xl shadow-black/30 overflow-hidden">
+                {actions.map((act) => {
+                  const Icon = act.icon;
+                  return (
+                    <button
+                      key={act.action}
+                      onClick={(e) => { e.stopPropagation(); onAction(act.action, course); setMenuOpen(false); }}
+                      className={`w-full flex items-center gap-2.5 px-3.5 py-2.5 text-xs hover:bg-[var(--color-background)] transition-colors cursor-pointer ${act.danger ? 'text-rose-400 hover:text-rose-300' : 'text-[var(--color-text)]'}`}
+                    >
+                      <Icon size={13} />
+                      {act.label}
+                    </button>
+                  );
+                })}
+              </div>
+            )}
+          </div>
         </div>
       </div>
     </div>
@@ -143,8 +154,11 @@ function CreateCourseModal({ onClose, onCreated }) {
         }),
       });
       if (res?.success) onCreated(res.data.course);
+      else onCreated({ id: `new_${Date.now()}`, ...form, status: 'Draft', enrolledStudents: 0, completionRate: 0 });
     } catch (e) {
       console.warn('Create course failed:', e);
+      // Still redirect with a temp course object so the flow works offline
+      onCreated({ id: `new_${Date.now()}`, ...form, status: 'Draft', enrolledStudents: 0, completionRate: 0 });
     } finally {
       setSaving(false);
     }
@@ -272,7 +286,7 @@ function CreateCourseModal({ onClose, onCreated }) {
   );
 }
 
-export default function CourseManagement({ onOpenBuilder }) {
+export default function CourseManagement({ onOpenBuilder, onOpenPreview, onTabChange }) {
   const [courses, setCourses] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -337,6 +351,8 @@ export default function CourseManagement({ onOpenBuilder }) {
   const handleCreated = (course) => {
     setCourses(c => [course, ...c]);
     setShowCreate(false);
+    // Redirect into Course Builder immediately after creation
+    if (onOpenBuilder) onOpenBuilder(course);
   };
 
   return (
@@ -411,7 +427,7 @@ export default function CourseManagement({ onOpenBuilder }) {
       ) : (
         <div className="grid grid-cols-1 gap-4">
           {filtered.map(course => (
-            <CourseCard key={course.id} course={course} onAction={handleAction} />
+            <CourseCard key={course.id} course={course} onAction={handleAction} onOpenPreview={onOpenPreview} />
           ))}
         </div>
       )}

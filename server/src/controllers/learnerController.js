@@ -16,75 +16,45 @@ export const getLearnerDashboard = async (req, res) => {
   try {
     const { id, name, email, role } = req.user;
 
-    // Auto-evaluate badges and sync ranks for live quickStats
-    await evaluateAndAwardBadges(id).catch(() => {});
+    const profile = await prisma.learnerProfile.findUnique({
+      where: { userId: id }
+    });
 
-    const [profile, goals, courses, enrollments, completedLessons, solvedChallenges, userBadgesCount, weekSubmissions] = await Promise.all([
-      prisma.learnerProfile.findUnique({
-        where: { userId: id },
-      }),
-      prisma.dailyGoal.findMany({
-        where: { userId: id, date: new Date().toISOString().slice(0, 10) },
-      }),
-      prisma.course.findMany({
-        take: 3,
-      }),
-      prisma.enrollment.findMany({
-        where: { userId: id },
-      }),
-      prisma.submission.count({
-        where: { userId: id, type: 'Lesson', status: 'COMPLETED' },
-      }),
-      prisma.submission.count({
-        where: { userId: id, type: 'Challenge', status: 'COMPLETED' },
-      }),
-      prisma.userBadge.count({
-        where: { userId: id },
-      }),
-      prisma.submission.findMany({
-        where: {
-          userId: id,
-          submittedAt: { gte: new Date(Date.now() - 7 * 24 * 60 * 60 * 1000) },
-        },
-        select: { score: true },
-      }),
-    ]);
-    const currentRank = await computeGlobalRank(id, profile?.xp || 0);
+    const goals = await prisma.dailyGoal.findMany({
+      where: { userId: id, date: new Date().toISOString().slice(0, 10) }
+    });
 
-    const enrolledCount = enrollments.length;
-    const completedCoursesCount = enrollments.filter(e => e.status === 'Completed' || (e.progress || 0) >= 100).length;
-    const xpThisWeek = weekSubmissions.reduce((sum, s) => sum + (s.score || 0), 0);
+    const courses = await prisma.course.findMany({
+      take: 3
+    });
 
     return res.status(200).json({
       success: true,
       message: 'Learner dashboard data fetched successfully.',
       data: {
         user: { id, name, email, role },
-        level: profile?.level || Math.max(1, Math.floor((profile?.xp || 0) / 500) + 1),
+        level: profile?.level || 1,
         xp: profile?.xp || 0,
         streak: profile?.streak || 0,
-        todayGoals: goals,
+        longestStreak: profile?.longestStreak || 0,
+        currentCourse,
+        todayGoals,
         stats: {
-          courses: { enrolled: enrolledCount, completed: completedCoursesCount },
-          lessons: { total: 0, completed: completedLessons },
-          challenges: { attempted: solvedChallenges, solved: solvedChallenges },
+          courses: { enrolled: 0, completed: 0 },
+          lessons: { total: 0, completed: 0 },
+          challenges: { attempted: 0, solved: 0 },
           quizScore: 0,
-          learningHours: profile?.learningHours || 0,
+          learningHours: profile?.learningHours || 0
         },
         recentActivity: [],
         recommendation: {
-          title: courses[0]?.title || 'Quantum Fundamentals',
+          title: courses[0]?.title || 'Course',
           reason: 'Recommended based on your activity.',
           module: 'Module 1',
           difficulty: 'Beginner',
           duration: '35 min',
         },
-        quickStats: {
-          rank: currentRank,
-          badges: userBadgesCount,
-          daysActive: profile?.streak || 0,
-          xpThisWeek,
-        },
+        quickStats: { rank: profile?.rank || 0, badges: 0, daysActive: profile?.streak || 0, xpThisWeek: 0 }
       },
     });
   } catch (error) {
@@ -92,6 +62,7 @@ export const getLearnerDashboard = async (req, res) => {
     res.status(500).json({ success: false, error: 'Failed to fetch dashboard data' });
   }
 };
+
 
 export const getLearnerCourses = async (req, res) => {
   try {

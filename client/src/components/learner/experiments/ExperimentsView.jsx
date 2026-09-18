@@ -7,7 +7,8 @@ import {
   LuCode, LuSettings2, LuBrain, LuArrowLeft, LuRefreshCcw, LuDownload,
   LuActivity, LuCpu, LuZap, LuDatabase,
 } from 'react-icons/lu';
-import { apiFetch } from '../../services/api';
+import { apiFetch } from '../../../services/api';
+import NewExperimentWizard from './NewExperimentWizard';
 
 const BACKENDS = [
   { id: 'qiskit_aer', label: 'Qiskit Aer', color: 'bg-indigo-500/15 text-indigo-400 border-indigo-500/30' },
@@ -100,9 +101,9 @@ function ExperimentCard({ exp, onOpen, onDelete, onRun }) {
       <div className="absolute bottom-4 right-4 flex items-center gap-2 opacity-0 group-hover:opacity-100 transition-all">
         <button
           onClick={handleRun}
-          disabled={running || exp.status === 'RUNNING'}
+          disabled={running || exp.status === 'RUNNING' || !exp.circuitCode?.trim()}
           className="p-1.5 rounded-lg bg-[var(--color-primary)]/10 text-[var(--color-primary)] hover:bg-[var(--color-primary)]/20 transition-colors disabled:opacity-50"
-          title="Run experiment"
+          title={!exp.circuitCode?.trim() ? "Add circuit code to run" : "Run experiment"}
         >
           {running ? <LuLoader size={13} className="animate-spin" /> : <LuPlay size={13} />}
         </button>
@@ -119,101 +120,11 @@ function ExperimentCard({ exp, onOpen, onDelete, onRun }) {
   );
 }
 
-function CreateExperimentModal({ onClose, onCreate }) {
-  const [form, setForm] = useState({ name: '', objective: '', hypothesis: '', tags: '' });
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState('');
-
-  const handleSubmit = async (e) => {
-    e.preventDefault();
-    if (!form.name || !form.objective) { setError('Name and objective are required.'); return; }
-    setLoading(true);
-    setError('');
-    try {
-      const res = await apiFetch('/learner/experiments', {
-        method: 'POST',
-        body: JSON.stringify({
-          name: form.name,
-          objective: form.objective,
-          hypothesis: form.hypothesis,
-          tags: form.tags ? form.tags.split(',').map(t => t.trim()).filter(Boolean) : [],
-        }),
-      });
-      if (res?.success) { onCreate(res.data.experiment); onClose(); }
-      else setError(res?.error || 'Failed to create experiment.');
-    } catch (err) {
-      setError(err.message || 'Failed to create experiment.');
-    }
-    setLoading(false);
-  };
-
-  return (
-    <div className="fixed inset-0 z-50 flex items-center justify-center px-4 bg-black/60 backdrop-blur-sm">
-      <div className="w-full max-w-lg rounded-3xl border border-[var(--color-border)] bg-[var(--color-surface)] p-7 shadow-2xl space-y-5">
-        <div className="flex items-center gap-3">
-          <div className="w-10 h-10 rounded-xl bg-[var(--color-primary)]/15 flex items-center justify-center">
-            <LuFlaskConical size={20} className="text-[var(--color-primary)]" />
-          </div>
-          <div>
-            <h2 className="font-bold text-base text-[var(--color-text)]">New Experiment</h2>
-            <p className="text-xs text-[var(--color-muted)]">Define your quantum experiment</p>
-          </div>
-        </div>
-
-        {error && (
-          <div className="p-3 rounded-xl bg-rose-500/10 border border-rose-500/20 text-rose-400 text-xs flex items-center gap-2">
-            <LuCircleX size={14} />{error}
-          </div>
-        )}
-
-        <form onSubmit={handleSubmit} className="space-y-4">
-          {[
-            { key: 'name', label: 'Experiment Name *', placeholder: 'Bell State Entanglement Study', rows: 1 },
-            { key: 'objective', label: 'Objective *', placeholder: 'Demonstrate quantum entanglement between two qubits using a Bell state circuit', rows: 3 },
-            { key: 'hypothesis', label: 'Hypothesis', placeholder: 'Applying Hadamard + CNOT gates will produce equal superposition...', rows: 2 },
-            { key: 'tags', label: 'Tags (comma-separated)', placeholder: 'entanglement, bell-state, qiskit', rows: 1 },
-          ].map(({ key, label, placeholder, rows }) => (
-            <div key={key}>
-              <label className="block text-xs font-semibold uppercase tracking-wider text-[var(--color-text)] mb-1.5">{label}</label>
-              {rows === 1 ? (
-                <input
-                  type="text"
-                  value={form[key]}
-                  onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                  placeholder={placeholder}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-sm text-[var(--color-text)] placeholder-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40 focus:border-[var(--color-primary)] transition-all"
-                />
-              ) : (
-                <textarea
-                  rows={rows}
-                  value={form[key]}
-                  onChange={e => setForm(f => ({ ...f, [key]: e.target.value }))}
-                  placeholder={placeholder}
-                  className="w-full px-3 py-2.5 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-sm text-[var(--color-text)] placeholder-[var(--color-muted)] focus:outline-none focus:ring-2 focus:ring-[var(--color-primary)]/40 focus:border-[var(--color-primary)] transition-all resize-none"
-                />
-              )}
-            </div>
-          ))}
-
-          <div className="flex gap-3 pt-1">
-            <button type="button" onClick={onClose} className="flex-1 py-2.5 rounded-xl border border-[var(--color-border)] text-sm text-[var(--color-muted)] hover:text-[var(--color-text)] hover:border-[var(--color-text)]/30 transition-colors">
-              Cancel
-            </button>
-            <button type="submit" disabled={loading} className="flex-1 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-semibold hover:opacity-90 transition-all disabled:opacity-50 flex items-center justify-center gap-2">
-              {loading ? <LuLoader size={15} className="animate-spin" /> : <LuPlus size={15} />}
-              Create
-            </button>
-          </div>
-        </form>
-      </div>
-    </div>
-  );
-}
 
 function ExperimentDetail({ exp: initialExp, onBack, onRefresh }) {
   const [exp, setExp] = useState(initialExp);
   const [tab, setTab] = useState('circuit'); // circuit | params | results | observations
-  const [circuitCode, setCircuitCode] = useState(initialExp.circuitCode || DEFAULT_CIRCUIT_CODE);
+  const [circuitCode, setCircuitCode] = useState(initialExp.circuitCode || '');
   const [backend, setBackend] = useState(initialExp.backend || 'qiskit_aer');
   const [framework, setFramework] = useState(initialExp.framework || 'qiskit');
   const [shots, setShots] = useState((initialExp.parameters?.shots) || 1024);
@@ -283,7 +194,7 @@ function ExperimentDetail({ exp: initialExp, onBack, onRefresh }) {
           <button onClick={handleSaveDraft} disabled={saving} className="px-3 py-2 rounded-xl border border-[var(--color-border)] text-xs font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)] transition-colors flex items-center gap-1.5 disabled:opacity-50">
             {saving ? <LuLoader size={13} className="animate-spin" /> : <LuSave size={13} />} Save Draft
           </button>
-          <button onClick={handleRun} disabled={running || exp.status === 'RUNNING'} className="px-4 py-2 rounded-xl bg-[var(--color-primary)] text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 transition-all disabled:opacity-50 shadow-md shadow-[var(--color-primary)]/20">
+          <button onClick={handleRun} disabled={running || exp.status === 'RUNNING' || !circuitCode?.trim()} className="px-4 py-2 rounded-xl bg-[var(--color-primary)] text-white text-xs font-semibold flex items-center gap-1.5 hover:opacity-90 transition-all disabled:opacity-50 shadow-md shadow-[var(--color-primary)]/20" title={!circuitCode?.trim() ? "Add circuit code to run" : "Run"}>
             {running ? <LuLoader size={13} className="animate-spin" /> : <LuPlay size={13} />}
             {running ? 'Running...' : 'Run'}
           </button>
@@ -451,7 +362,7 @@ function ExperimentDetail({ exp: initialExp, onBack, onRefresh }) {
             <div className="rounded-2xl border border-[var(--color-border)] bg-[var(--color-surface)] p-12 text-center">
               <LuActivity size={32} className="text-[var(--color-muted)] mx-auto mb-3" />
               <p className="text-sm text-[var(--color-muted)]">No results yet. Run the experiment to see results here.</p>
-              <button onClick={handleRun} className="mt-4 px-5 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-semibold inline-flex items-center gap-2 hover:opacity-90 transition-all">
+              <button onClick={handleRun} disabled={!circuitCode?.trim()} className="mt-4 px-5 py-2.5 rounded-xl bg-[var(--color-primary)] text-white text-sm font-semibold inline-flex items-center gap-2 hover:opacity-90 transition-all disabled:opacity-50">
                 <LuPlay size={14} /> Run Experiment
               </button>
             </div>
@@ -529,6 +440,20 @@ export default function ExperimentsView() {
     } catch { setSelected(exp); }
   };
 
+  if (showCreate) {
+    return (
+      <NewExperimentWizard
+        onCancel={() => setShowCreate(false)}
+        onComplete={(exp) => {
+          setShowCreate(false);
+          setExperiments(prev => [exp, ...prev]);
+          setTotal(t => t + 1);
+          setSelected(exp); // Optional: immediately open the saved experiment
+        }}
+      />
+    );
+  }
+
   if (selected) {
     return <ExperimentDetail exp={selected} onBack={() => setSelected(null)} onRefresh={fetchExperiments} />;
   }
@@ -585,12 +510,7 @@ export default function ExperimentsView() {
         </div>
       )}
 
-      {showCreate && (
-        <CreateExperimentModal
-          onClose={() => setShowCreate(false)}
-          onCreate={exp => { setExperiments(prev => [exp, ...prev]); setTotal(t => t + 1); }}
-        />
-      )}
+
     </div>
   );
 }

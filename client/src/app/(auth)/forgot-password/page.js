@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter } from 'next/navigation';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { LuCpu, LuMail, LuArrowRight, LuCircleAlert, LuLoaderCircle, LuArrowLeft, LuKeyRound } from 'react-icons/lu';
+import toast from 'react-hot-toast';
 
 export default function ForgotPasswordPage() {
   const router = useRouter();
@@ -16,13 +17,18 @@ export default function ForgotPasswordPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!email) {
-      setLocalError('Please provide your email address.');
+      const msg = 'Please provide your email address.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     const result = await forgotPassword(email);
     if (result.success) {
+      toast.success('Password reset code sent to your email.');
       router.push(`/reset-password?email=${encodeURIComponent(email)}`);
+    } else {
+      toast.error(result.error || 'Failed to send reset code. Please try again.');
     }
   };
 

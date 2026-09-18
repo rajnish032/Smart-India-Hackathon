@@ -20,6 +20,7 @@ import {
   InstructorAnalytics,
   ContentManagement,
   InstructorSettings,
+  CoursePreview,
 } from '../../components/instructor';
 import {
   LuChevronRight,
@@ -35,6 +36,7 @@ const ALL_TAB_META = {
   analytics:           { label: 'Analytics',         group: 'Manage' },
   content:             { label: 'Content',           group: 'Manage' },
   'course-builder':    { label: 'Course Builder',    group: 'Create' },
+  'course-preview':    { label: 'Course Preview',    group: 'Manage' },
   'lesson-builder':    { label: 'Lesson Builder',    group: 'Create' },
   'quiz-builder':      { label: 'Quiz Builder',      group: 'Create' },
   'challenge-builder': { label: 'Challenge Builder', group: 'Create' },
@@ -72,9 +74,18 @@ function InstructorPortalContent() {
     ? rawTab.toLowerCase()
     : 'overview';
 
+  // Context from URL (safe: null if not present)
+  const urlCourseId  = searchParams.get('courseId')  || null;
+  const urlModuleId  = searchParams.get('moduleId')  || null;
+  const urlItemId    = searchParams.get('itemId')    || null;
+  const urlItemType  = searchParams.get('itemType')  || null; // 'lesson' | 'quiz' | 'challenge'
+  const urlGradingFocus = searchParams.get('grading') === '1';
+
   const [portalData, setPortalData] = useState(null);
   const [isCollapsed, setIsCollapsed] = useState(false);
   const [isMobileOpen, setIsMobileOpen] = useState(false);
+
+  // Ephemeral builder context (kept in memory; URL is source of truth for IDs)
   const [selectedCourse, setSelectedCourse] = useState(null);
 
   useEffect(() => {
@@ -89,6 +100,7 @@ function InstructorPortalContent() {
     fetchPortalData();
   }, []);
 
+  // ── Navigation helpers ────────────────────────────────────────────────────
   const handleTabChange = (tabId) => {
     if (tabId === 'overview') {
       router.push('/instructor');
@@ -97,9 +109,55 @@ function InstructorPortalContent() {
     }
   };
 
+  /** Navigate to CourseBuilder with an optional course object in memory */
   const handleOpenBuilder = (course) => {
-    setSelectedCourse(course);
-    handleTabChange('course-builder');
+    if (course) setSelectedCourse(course);
+    const id = course?.id ? `&courseId=${course.id}` : '';
+    router.push(`/instructor?tab=course-builder${id}`);
+  };
+
+  /** Navigate to CoursePreview with a course object */
+  const handleOpenPreview = (course) => {
+    if (course) setSelectedCourse(course);
+    const id = course?.id ? `&courseId=${course.id}` : '';
+    router.push(`/instructor?tab=course-preview${id}`);
+  };
+
+  /** Navigate to LessonBuilder with full context */
+  const handleOpenLesson = ({ courseId, moduleId, lessonId } = {}) => {
+    let qs = `/instructor?tab=lesson-builder`;
+    if (courseId)  qs += `&courseId=${courseId}`;
+    if (moduleId)  qs += `&moduleId=${moduleId}`;
+    if (lessonId)  qs += `&itemId=${lessonId}&itemType=lesson`;
+    router.push(qs);
+  };
+
+  /** Navigate to QuizBuilder with full context */
+  const handleOpenQuiz = ({ courseId, moduleId, quizId } = {}) => {
+    let qs = `/instructor?tab=quiz-builder`;
+    if (courseId)  qs += `&courseId=${courseId}`;
+    if (moduleId)  qs += `&moduleId=${moduleId}`;
+    if (quizId)    qs += `&itemId=${quizId}&itemType=quiz`;
+    router.push(qs);
+  };
+
+  /** Navigate to ChallengeBuilder with full context */
+  const handleOpenChallenge = ({ courseId, moduleId, challengeId } = {}) => {
+    let qs = `/instructor?tab=challenge-builder`;
+    if (courseId)     qs += `&courseId=${courseId}`;
+    if (moduleId)     qs += `&moduleId=${moduleId}`;
+    if (challengeId)  qs += `&itemId=${challengeId}&itemType=challenge`;
+    router.push(qs);
+  };
+
+  /** Navigate to Students tab, optionally focus on grading queue */
+  const handleOpenStudents = ({ focusGrading } = {}) => {
+    router.push(`/instructor?tab=students${focusGrading ? '&grading=1' : ''}`);
+  };
+
+  /** Navigate to ContentManagement, pre-filtering by type */
+  const handleOpenContent = ({ filterType } = {}) => {
+    router.push(`/instructor?tab=content${filterType ? `&filterType=${filterType}` : ''}`);
   };
 
   const isValidTab = VALID_TAB_IDS.includes(activeTab);
@@ -131,31 +189,104 @@ function InstructorPortalContent() {
           {isValidTab ? (
             <div className="animate-fadeIn">
               {activeTab === 'overview' && (
-                <InstructorOverview user={user} portalData={portalData} onTabChange={handleTabChange} />
+                <InstructorOverview
+                  user={user}
+                  portalData={portalData}
+                  onTabChange={handleTabChange}
+                  onOpenBuilder={handleOpenBuilder}
+                  onOpenLesson={handleOpenLesson}
+                  onOpenQuiz={handleOpenQuiz}
+                  onOpenChallenge={handleOpenChallenge}
+                  onOpenStudents={handleOpenStudents}
+                />
               )}
               {activeTab === 'courses' && (
-                <CourseManagement onOpenBuilder={handleOpenBuilder} />
+                <CourseManagement
+                  onOpenBuilder={handleOpenBuilder}
+                  onOpenPreview={handleOpenPreview}
+                />
+              )}
+              {activeTab === 'course-preview' && (
+                <CoursePreview
+                  course={selectedCourse}
+                  courseId={urlCourseId}
+                  onOpenBuilder={handleOpenBuilder}
+                  onOpenLesson={handleOpenLesson}
+                  onOpenQuiz={handleOpenQuiz}
+                  onOpenChallenge={handleOpenChallenge}
+                  onBack={() => router.push('/instructor?tab=courses')}
+                />
               )}
               {activeTab === 'course-builder' && (
-                <CourseBuilder course={selectedCourse} />
+                <CourseBuilder
+                  course={selectedCourse}
+                  courseId={urlCourseId}
+                  onOpenLesson={handleOpenLesson}
+                  onOpenQuiz={handleOpenQuiz}
+                  onOpenChallenge={handleOpenChallenge}
+                  onOpenPreview={handleOpenPreview}
+                  onBack={() => router.push('/instructor?tab=courses')}
+                />
               )}
               {activeTab === 'lesson-builder' && (
-                <LessonBuilder />
+                <LessonBuilder
+                  courseId={urlCourseId}
+                  moduleId={urlModuleId}
+                  lessonId={urlItemId}
+                  onBack={() => {
+                    if (urlCourseId) {
+                      router.push(`/instructor?tab=course-builder&courseId=${urlCourseId}${urlModuleId ? `&moduleId=${urlModuleId}` : ''}`);
+                    } else {
+                      router.push('/instructor?tab=course-builder');
+                    }
+                  }}
+                />
               )}
               {activeTab === 'quiz-builder' && (
-                <QuizBuilder />
+                <QuizBuilder
+                  courseId={urlCourseId}
+                  moduleId={urlModuleId}
+                  quizId={urlItemId}
+                  onBack={() => {
+                    if (urlCourseId) {
+                      router.push(`/instructor?tab=course-builder&courseId=${urlCourseId}${urlModuleId ? `&moduleId=${urlModuleId}` : ''}`);
+                    } else {
+                      router.push('/instructor?tab=course-builder');
+                    }
+                  }}
+                />
               )}
               {activeTab === 'challenge-builder' && (
-                <ChallengeBuilder />
+                <ChallengeBuilder
+                  courseId={urlCourseId}
+                  moduleId={urlModuleId}
+                  challengeId={urlItemId}
+                  onBack={() => {
+                    if (urlCourseId) {
+                      router.push(`/instructor?tab=course-builder&courseId=${urlCourseId}${urlModuleId ? `&moduleId=${urlModuleId}` : ''}`);
+                    } else {
+                      router.push('/instructor?tab=course-builder');
+                    }
+                  }}
+                />
               )}
               {activeTab === 'students' && (
-                <StudentManagement />
+                <StudentManagement focusGrading={urlGradingFocus} />
               )}
               {activeTab === 'analytics' && (
-                <InstructorAnalytics />
+                <InstructorAnalytics
+                  onOpenLesson={handleOpenLesson}
+                  onTabChange={handleTabChange}
+                />
               )}
               {activeTab === 'content' && (
-                <ContentManagement />
+                <ContentManagement
+                  initialFilterType={searchParams.get('filterType') || 'All'}
+                  onOpenLesson={handleOpenLesson}
+                  onOpenQuiz={handleOpenQuiz}
+                  onOpenChallenge={handleOpenChallenge}
+                  onOpenBuilder={handleOpenBuilder}
+                />
               )}
               {activeTab === 'settings' && (
                 <InstructorSettings user={user} />

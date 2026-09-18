@@ -4,6 +4,9 @@ const API_BASE_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:5001/a
  * Universal Fetch API client configured with credentials: 'include' for HttpOnly cookie transport.
  * Implements silent token refresh on 401 TOKEN_EXPIRED errors.
  */
+
+let refreshPromise = null;
+
 export async function apiFetch(endpoint, options = {}) {
   let url = endpoint.startsWith('http') ? endpoint : `${API_BASE_URL}${endpoint.startsWith('/') ? '' : '/'}${endpoint}`;
 
@@ -37,14 +40,24 @@ export async function apiFetch(endpoint, options = {}) {
       const clone = response.clone();
       const errData = await clone.json().catch(() => ({}));
 
-      if (errData.code === 'TOKEN_EXPIRED' || errData.detail === 'Not authenticated' || errData.detail === 'Invalid token') {
-        const refreshResponse = await fetch(`${API_BASE_URL}/auth/refresh`, {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          credentials: 'include',
-        });
+      if (errData.code === 'TOKEN_EXPIRED' || errData.code === 'UNAUTHORIZED' || errData.detail === 'Not authenticated' || errData.detail === 'Invalid token') {
+        if (!refreshPromise) {
+          refreshPromise = fetch(`${API_BASE_URL}/auth/refresh`, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            credentials: 'include',
+          }).finally(() => {
+            // Give a small window before resetting to allow concurrent requests to share the promise
+            setTimeout(() => { refreshPromise = null; }, 1000);
+          });
+        }
 
-        if (refreshResponse.ok) {
+        const refreshResponse = await refreshPromise;
+
+        // Clone the response so it can be read multiple times by different awaiting fetch calls
+        const clonedRefreshResponse = refreshResponse.clone();
+
+        if (clonedRefreshResponse.ok) {
           // Token refreshed successfully! Retry original request with newly issued cookie
           response = await fetch(url, config);
         }

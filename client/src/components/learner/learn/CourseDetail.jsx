@@ -1,6 +1,7 @@
 "use client";
 
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
+import { apiFetch } from '../../../services/api';
 import {
   LuX, LuBookOpen, LuFlaskConical, LuBrain, LuTrophy, LuCheck,
   LuLock, LuChevronDown, LuChevronRight, LuPlay, LuArrowRight,
@@ -108,7 +109,30 @@ function ModuleSection({ module, onSelectLesson }) {
   );
 }
 
-export default function CourseDetail({ course, onClose, onSelectLesson }) {
+export default function CourseDetail({ course: initialCourse, onClose, onSelectLesson }) {
+  const [course, setCourse] = useState(initialCourse);
+  const [loading, setLoading] = useState(!initialCourse?.curriculum);
+
+  useEffect(() => {
+    let mounted = true;
+    if (initialCourse && !initialCourse.curriculum) {
+      setLoading(true);
+      apiFetch(`/learner/courses/${initialCourse.id}`)
+        .then(res => {
+          if (mounted && res?.data?.course) {
+            setCourse({ ...res.data.course, curriculum: res.data.curriculum });
+          }
+        })
+        .catch(err => console.warn('Failed to fetch course detail:', err))
+        .finally(() => {
+          if (mounted) setLoading(false);
+        });
+    } else {
+      setCourse(initialCourse);
+    }
+    return () => { mounted = false; };
+  }, [initialCourse]);
+
   if (!course) return null;
 
   const curriculumData = course.curriculum || [];
@@ -199,9 +223,16 @@ export default function CourseDetail({ course, onClose, onSelectLesson }) {
       {/* Curriculum Tree */}
       <div className="space-y-3">
         <h3 className="font-semibold text-base text-[var(--color-text)]">Course Curriculum</h3>
-        {curriculumData.map(module => (
-          <ModuleSection key={module.id} module={module} onSelectLesson={onSelectLesson} />
-        ))}
+        {loading ? (
+          <div className="py-12 flex flex-col items-center justify-center text-[var(--color-muted)]">
+            <div className="w-8 h-8 rounded-full border-2 border-[var(--color-primary)]/30 border-t-[var(--color-primary)] animate-spin mb-3"></div>
+            <p className="text-sm">Loading modules...</p>
+          </div>
+        ) : (
+          curriculumData.map(module => (
+            <ModuleSection key={module.id} module={module} onSelectLesson={onSelectLesson} />
+          ))
+        )}
       </div>
     </div>
   );

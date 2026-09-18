@@ -4,7 +4,7 @@ import React, { useState } from 'react';
 import {
   LuStar, LuPlus, LuTrash2, LuGrip, LuArrowUp, LuArrowDown,
   LuCheck, LuX, LuSave, LuEye, LuSettings, LuCode, LuCpu,
-  LuChevronDown, LuChevronRight, LuCircleCheck,
+  LuChevronDown, LuChevronRight, LuCircleCheck, LuArrowLeft,
 } from 'react-icons/lu';
 import { apiFetch } from '../../services/api';
 
@@ -29,13 +29,13 @@ function QuestionCard({ q, idx, onUpdate, onDelete, onMoveUp, onMoveDown, isFirs
   };
 
   return (
-    <div className="rounded-2xl bg-[var(--color-background)] border border-[var(--color-border)] hover:border-violet-500/30 transition-all overflow-hidden">
+    <div className="rounded-2xl bg-[var(--color-surface)]/60 backdrop-blur-md border border-[var(--color-border)] hover:border-violet-500/50 hover:shadow-lg hover:shadow-violet-500/10 transition-all duration-300 overflow-hidden">
       <button onClick={() => setExpanded(!expanded)} className="w-full flex items-center gap-3 p-4 text-left cursor-pointer hover:bg-violet-500/5 transition-colors">
         <LuGrip size={13} className="text-[var(--color-muted)] shrink-0" />
         {expanded ? <LuChevronDown size={13} className="text-violet-400 shrink-0" /> : <LuChevronRight size={13} className="text-[var(--color-muted)] shrink-0" />}
-        <span className="text-[10px] font-mono font-bold text-violet-400 px-2 py-0.5 rounded bg-violet-500/10 shrink-0">Q{idx + 1}</span>
-        <span className="flex-1 text-xs font-semibold text-[var(--color-text)] truncate">{q.text || 'Untitled question'}</span>
-        <span className="text-[10px] font-mono text-[var(--color-muted)] shrink-0">{q.marks} pts · {q.difficulty}</span>
+        <span className="text-[10px] font-mono font-bold text-violet-400 px-2 py-0.5 rounded-lg bg-violet-500/10 shrink-0">Q{idx + 1}</span>
+        <span className="flex-1 text-sm font-semibold text-[var(--color-text)] truncate">{q.text || 'Untitled question'}</span>
+        <span className="text-[10px] font-mono font-medium px-2 py-1 rounded bg-[var(--color-background)] text-[var(--color-muted)] shrink-0">{q.marks} pts · {q.difficulty}</span>
         <div className="flex items-center gap-1 shrink-0">
           {!isFirst && <button onClick={e => { e.stopPropagation(); onMoveUp(); }} className="p-1 hover:text-violet-400 text-[var(--color-muted)] cursor-pointer"><LuArrowUp size={11} /></button>}
           {!isLast && <button onClick={e => { e.stopPropagation(); onMoveDown(); }} className="p-1 hover:text-violet-400 text-[var(--color-muted)] cursor-pointer"><LuArrowDown size={11} /></button>}
@@ -83,22 +83,22 @@ function QuestionCard({ q, idx, onUpdate, onDelete, onMoveUp, onMoveDown, isFirs
             <div className="space-y-2">
               <label className="text-[10px] font-mono text-[var(--color-muted)] uppercase">Answer Options</label>
               {q.options.map((opt, i) => (
-                <div key={i} className="flex items-center gap-2">
+                <div key={i} className={`flex items-center gap-3 p-2 rounded-xl border transition-all ${q.correct === i ? 'bg-emerald-500/5 border-emerald-500/50 shadow-[0_0_15px_rgba(16,185,129,0.1)]' : 'bg-[var(--color-background)] border-[var(--color-border)] hover:border-violet-500/30'}`}>
                   <button onClick={() => onUpdate({ ...q, correct: i })}
-                    className={`w-5 h-5 rounded-full border-2 shrink-0 transition-all cursor-pointer ${q.correct === i ? 'border-emerald-500 bg-emerald-500' : 'border-[var(--color-border)] hover:border-emerald-500/50'}`}>
-                    {q.correct === i && <LuCheck size={10} className="text-white mx-auto mt-0.5" />}
+                    className={`w-5 h-5 rounded-full border-2 shrink-0 transition-all flex items-center justify-center cursor-pointer ${q.correct === i ? 'border-emerald-500 bg-emerald-500 shadow-[0_0_10px_rgba(16,185,129,0.3)]' : 'border-[var(--color-muted)] hover:border-emerald-500/50'}`}>
+                    {q.correct === i && <LuCheck size={12} className="text-white" />}
                   </button>
                   <input type="text" value={opt} onChange={e => updateOption(i, e.target.value)}
                     placeholder={`Option ${i + 1}`}
-                    className="flex-1 px-3 py-1.5 rounded-lg bg-[var(--color-surface)] border border-[var(--color-border)] text-xs text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-violet-500/50 placeholder:text-[var(--color-muted)]"
+                    className="flex-1 bg-transparent text-xs text-[var(--color-text)] focus:outline-none placeholder:text-[var(--color-muted)]"
                   />
                   {q.options.length > 2 && (
-                    <button onClick={() => removeOption(i)} className="text-rose-400 hover:text-rose-300 cursor-pointer p-1"><LuX size={12} /></button>
+                    <button onClick={() => removeOption(i)} className="text-[var(--color-muted)] hover:text-rose-400 hover:bg-rose-500/10 rounded-lg p-1.5 transition-colors cursor-pointer"><LuX size={14} /></button>
                   )}
                 </div>
               ))}
               {q.options.length < 6 && (
-                <button onClick={addOption} className="text-xs text-violet-400 hover:text-violet-300 flex items-center gap-1 cursor-pointer"><LuPlus size={12} /> Add option</button>
+                <button onClick={addOption} className="text-xs font-semibold text-violet-400 hover:text-violet-300 flex items-center gap-1.5 cursor-pointer mt-2"><LuPlus size={14} /> Add another option</button>
               )}
               <p className="text-[10px] text-[var(--color-muted)]">Click the circle to mark the correct answer.</p>
             </div>
@@ -138,7 +138,7 @@ function QuestionCard({ q, idx, onUpdate, onDelete, onMoveUp, onMoveDown, isFirs
   );
 }
 
-export default function QuizBuilder() {
+export default function QuizBuilder({ courseId, moduleId, quizId, onBack }) {
   const [title, setTitle] = useState('Module 1 — Quantum Fundamentals Quiz');
   const [settings, setSettings] = useState({ timeLimit: 15, passScore: 70, attempts: 1, shuffle: true, difficulty: 'Beginner' });
   const [questions, setQuestions] = useState([
@@ -184,10 +184,17 @@ export default function QuizBuilder() {
 
   const handleSave = async () => {
     try {
-      await apiFetch('/instructor/quizzes', {
-        method: 'POST',
-        body: JSON.stringify({ title, ...settings, questions }),
-      });
+      if (quizId) {
+        await apiFetch(`/instructor/quizzes/${quizId}`, {
+          method: 'PUT',
+          body: JSON.stringify({ title, ...settings, questions, moduleId, courseId }),
+        });
+      } else {
+        await apiFetch('/instructor/quizzes', {
+          method: 'POST',
+          body: JSON.stringify({ title, ...settings, questions, moduleId, courseId }),
+        });
+      }
     } catch { /* optimistic */ }
     setSaved(true);
     setTimeout(() => setSaved(false), 2000);
@@ -195,6 +202,16 @@ export default function QuizBuilder() {
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* Back nav */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted)] hover:text-violet-400 transition-colors cursor-pointer group"
+        >
+          <LuArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
+          Back to Course Builder
+        </button>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
         <div className="space-y-1">
@@ -219,9 +236,9 @@ export default function QuizBuilder() {
         {/* Questions */}
         <div className="lg:col-span-3 space-y-4">
           <div className="flex items-center justify-between">
-            <h3 className="text-sm font-bold text-[var(--color-text)]">{questions.length} Question{questions.length !== 1 ? 's' : ''} · {totalMarks} total marks</h3>
-            <button onClick={addQuestion} className="px-4 py-2 rounded-xl bg-amber-500/15 text-amber-400 border border-amber-500/30 text-xs font-bold hover:bg-amber-500/25 transition-colors cursor-pointer flex items-center gap-1.5">
-              <LuPlus size={13} /> Add Question
+            <h3 className="text-lg font-extrabold text-[var(--color-text)]">{questions.length} Question{questions.length !== 1 ? 's' : ''} <span className="text-[var(--color-muted)] text-sm font-normal ml-2">· {totalMarks} total marks</span></h3>
+            <button onClick={addQuestion} className="px-4 py-2 rounded-xl bg-gradient-to-r from-amber-500 to-amber-600 text-white shadow-lg shadow-amber-500/20 text-xs font-bold hover:opacity-90 transition-opacity cursor-pointer flex items-center gap-1.5">
+              <LuPlus size={14} /> Add Question
             </button>
           </div>
 
@@ -235,15 +252,15 @@ export default function QuizBuilder() {
             />
           ))}
 
-          <button onClick={addQuestion} className="w-full py-3 rounded-2xl border border-dashed border-[var(--color-border)] text-xs text-[var(--color-muted)] hover:text-amber-400 hover:border-amber-500/40 transition-all cursor-pointer flex items-center justify-center gap-2">
-            <LuPlus size={14} /> Add Another Question
+          <button onClick={addQuestion} className="w-full py-4 rounded-2xl border-2 border-dashed border-[var(--color-border)] bg-[var(--color-surface)]/30 text-sm font-semibold text-[var(--color-muted)] hover:text-amber-400 hover:border-amber-500/40 hover:bg-amber-500/5 transition-all duration-300 cursor-pointer flex items-center justify-center gap-2">
+            <LuPlus size={18} /> Add Another Question
           </button>
         </div>
 
         {/* Settings Panel */}
         <div className="space-y-4">
-          <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-4">
-            <h4 className="text-xs font-bold text-[var(--color-text)] uppercase tracking-wider flex items-center gap-2"><LuSettings size={13} className="text-amber-400" /> Quiz Settings</h4>
+          <div className="p-6 rounded-3xl bg-[var(--color-surface)]/60 backdrop-blur-xl border border-[var(--color-border)] shadow-xl space-y-5">
+            <h4 className="text-xs font-bold text-[var(--color-text)] uppercase tracking-wider flex items-center gap-2"><LuSettings size={14} className="text-amber-400" /> Quiz Settings</h4>
             {[
               { label: 'Time Limit (min)', key: 'timeLimit', type: 'number' },
               { label: 'Pass Score (%)', key: 'passScore', type: 'number' },
@@ -269,7 +286,7 @@ export default function QuizBuilder() {
             </label>
           </div>
 
-          <div className="p-5 rounded-2xl bg-[var(--color-surface)] border border-[var(--color-border)] space-y-3">
+          <div className="p-6 rounded-3xl bg-[var(--color-surface)]/60 backdrop-blur-xl border border-[var(--color-border)] shadow-xl space-y-4">
             <h4 className="text-xs font-bold text-[var(--color-text)] uppercase tracking-wider">Summary</h4>
             {[
               { label: 'Questions', value: questions.length },

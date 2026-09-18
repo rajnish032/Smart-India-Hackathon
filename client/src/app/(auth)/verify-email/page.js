@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { LuCpu, LuMail, LuCircleCheck, LuCircleAlert, LuLoaderCircle, LuRefreshCw, LuArrowRight } from 'react-icons/lu';
+import toast from 'react-hot-toast';
 
 function VerifyEmailForm() {
   const router = useRouter();
@@ -85,22 +86,29 @@ function VerifyEmailForm() {
     const fullOtp = otp.join('');
 
     if (!email) {
-      setLocalError('Please provide your registered email address.');
+      const msg = 'Please provide your registered email address.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     if (fullOtp.length !== 6) {
-      setLocalError('Please enter all 6 digits of the verification code.');
+      const msg = 'Please enter all 6 digits of the verification code.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     const result = await verifyEmail(email, fullOtp);
 
     if (result.success) {
+      toast.success('Email verified successfully! Welcome to QubitMind.');
       const role = (result.user?.role || '').toUpperCase();
       if (role === 'ADMIN') router.replace('/admin');
       else if (role === 'INSTRUCTOR') router.replace('/instructor');
       else router.replace('/dashboard');
+    } else {
+      toast.error(result.error || 'Verification failed. Please check the code.');
     }
   };
 
@@ -111,7 +119,10 @@ function VerifyEmailForm() {
 
     const result = await resendOtp(email, 'EMAIL_VERIFICATION');
     if (result.success) {
+      toast.success('A new 6-digit verification code has been dispatched.');
       setResendSuccess('A new 6-digit code has been dispatched to your email.');
+    } else {
+      toast.error(result.error || 'Failed to resend code. Please try again.');
     }
   };
 

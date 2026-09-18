@@ -108,12 +108,103 @@ export const createCourse = async (req, res) => {
 export const updateCourse = async (req, res) => {
   try {
     const { id } = req.params;
-    const course = await prisma.course.update({
+    const { modules, ...courseData } = req.body;
+    
+    // Verify ownership and get existing nested relations
+    const existingCourse = await prisma.course.findUnique({
       where: { id, instructorId: req.user.id },
-      data: req.body
+      include: { modules: { include: { lessons: true } } }
     });
+    if (!existingCourse) return res.status(404).json({ success: false, error: 'Course not found' });
+
+    // Update course metadata
+    const course = await prisma.course.update({
+      where: { id },
+      data: courseData
+    });
+
+    // Sync modules and lessons if provided
+    if (modules && Array.isArray(modules)) {
+      // 1. Delete removed modules
+      const incomingModIds = modules.filter(m => !m.id.startsWith('mod_')).map(m => m.id);
+      const dbModIds = existingCourse.modules.map(m => m.id);
+      const modsToDelete = dbModIds.filter(modId => !incomingModIds.includes(modId));
+      if (modsToDelete.length > 0) {
+        await prisma.module.deleteMany({ where: { id: { in: modsToDelete } } });
+      }
+
+      // 2. Upsert modules
+      for (const [modIndex, mod] of modules.entries()) {
+        let moduleId = mod.id;
+        
+        if (moduleId.startsWith('mod_')) {
+          const newMod = await prisma.module.create({
+            data: {
+              title: mod.title,
+              description: mod.description || '',
+              objectives: mod.objectives || [],
+              completionRule: mod.completionRule || 'All lessons',
+              status: mod.status || 'Draft',
+              order: modIndex + 1,
+              courseId: id
+            }
+          });
+          moduleId = newMod.id;
+        } else {
+          await prisma.module.update({
+            where: { id: moduleId },
+            data: {
+              title: mod.title,
+              completionRule: mod.completionRule,
+              status: mod.status,
+              order: modIndex + 1
+            }
+          });
+        }
+
+        // 3. Upsert lessons for this module
+        if (mod.lessons && Array.isArray(mod.lessons)) {
+          const existingMod = existingCourse.modules.find(m => m.id === moduleId);
+          if (existingMod) {
+            const incomingLesIds = mod.lessons.filter(l => !l.id.startsWith('les_')).map(l => l.id);
+            const dbLesIds = existingMod.lessons.map(l => l.id);
+            const lesToDelete = dbLesIds.filter(lesId => !incomingLesIds.includes(lesId));
+            if (lesToDelete.length > 0) {
+              await prisma.lesson.deleteMany({ where: { id: { in: lesToDelete } } });
+            }
+          }
+
+          for (const [lesIndex, lesson] of mod.lessons.entries()) {
+            if (lesson.id.startsWith('les_')) {
+              await prisma.lesson.create({
+                data: {
+                  title: lesson.title,
+                  type: lesson.type,
+                  duration: lesson.duration || '10 min',
+                  status: lesson.status || 'Draft',
+                  order: lesIndex + 1,
+                  moduleId: moduleId
+                }
+              });
+            } else {
+              await prisma.lesson.update({
+                where: { id: lesson.id },
+                data: {
+                  title: lesson.title,
+                  duration: lesson.duration,
+                  status: lesson.status,
+                  order: lesIndex + 1
+                }
+              });
+            }
+          }
+        }
+      }
+    }
+
     return res.status(200).json({ success: true, message: 'Course updated.', data: { course } });
   } catch (error) {
+    console.error('Error updating course:', error);
     return res.status(500).json({ success: false, error: 'Failed to update course' });
   }
 };

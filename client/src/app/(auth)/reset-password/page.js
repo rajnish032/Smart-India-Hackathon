@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { LuCpu, LuMail, LuLock, LuShieldCheck, LuCircleAlert, LuLoaderCircle, LuArrowRight, LuArrowLeft } from 'react-icons/lu';
+import toast from 'react-hot-toast';
 
 function ResetPasswordForm() {
   const router = useRouter();
@@ -42,29 +43,40 @@ function ResetPasswordForm() {
     e.preventDefault();
 
     if (!formData.email || !formData.otp || !formData.newPassword) {
-      setLocalError('All fields are required.');
+      const msg = 'All fields are required.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     if (formData.otp.trim().length !== 6) {
-      setLocalError('Please enter the 6-digit verification code.');
+      const msg = 'Please enter the 6-digit verification code.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     if (formData.newPassword !== formData.confirmPassword) {
-      setLocalError('Passwords do not match.');
+      const msg = 'Passwords do not match.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     if (formData.newPassword.length < 8) {
-      setLocalError('Password must be at least 8 characters long.');
+      const msg = 'Password must be at least 8 characters long.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     const result = await resetPassword(formData.email, formData.otp.trim(), formData.newPassword);
 
     if (result.success) {
+      toast.success('Password updated successfully! Please sign in.');
       router.push('/login?reset=true');
+    } else {
+      toast.error(result.error || 'Password reset failed. Please check the code.');
     }
   };
 

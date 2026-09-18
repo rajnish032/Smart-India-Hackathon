@@ -5,6 +5,7 @@ import Link from 'next/link';
 import { useRouter, useSearchParams } from 'next/navigation';
 import { useAuthStore } from '../../../store/useAuthStore';
 import { LuCpu, LuMail, LuLock, LuArrowRight, LuCircleAlert, LuLoaderCircle } from 'react-icons/lu';
+import toast from 'react-hot-toast';
 
 function LoginForm() {
   const router = useRouter();
@@ -43,18 +44,22 @@ function LoginForm() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     if (!formData.email || !formData.password) {
-      setLocalError('Please enter both your email address and password.');
+      const msg = 'Please enter both your email address and password.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     const result = await login(formData.email, formData.password);
 
     if (result.requiresVerification) {
+      toast.error('Please verify your email to access your account.');
       router.push(`/verify-email?email=${encodeURIComponent(result.email)}&unverified=true`);
       return;
     }
 
     if (result.success) {
+      toast.success(`Welcome back, ${result.user?.name || 'Explorer'}!`);
       // Direct redirect to each role-specific dashboard
       const role = (result.user?.role || '').toUpperCase();
       if (role === 'ADMIN') {
@@ -64,6 +69,8 @@ function LoginForm() {
       } else {
         router.replace('/dashboard');
       }
+    } else {
+      toast.error(result.error || 'Invalid email or password.');
     }
   };
 

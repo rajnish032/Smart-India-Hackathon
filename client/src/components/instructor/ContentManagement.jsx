@@ -5,7 +5,7 @@ import {
   LuFolderOpen, LuBookOpen, LuFileText, LuStar, LuZap, LuFlaskConical,
   LuLayers, LuSearch, LuFilter, LuArrowRight, LuCheck, LuX,
   LuEye, LuPencil, LuTrash2, LuArchive, LuUpload, LuDownload,
-  LuClock, LuEllipsisVertical,
+  LuClock, LuEllipsisVertical, LuExternalLink,
 } from 'react-icons/lu';
 import { apiFetch } from '../../services/api';
 
@@ -49,7 +49,7 @@ const INITIAL_CONTENT = [
   { id: 'cm15', type: 'Experiment', title: 'Lab: VQC Training Simulation', status: 'Draft', lastModified: '2 hours ago' },
 ];
 
-function ContentRow({ item, onStatusChange, onDelete }) {
+function ContentRow({ item, onStatusChange, onDelete, onEdit }) {
   const [menuOpen, setMenuOpen] = useState(false);
   const Icon = TYPE_ICONS[item.type] || LuFileText;
   const typeColor = TYPE_COLORS[item.type] || TYPE_COLORS.Lesson;
@@ -68,7 +68,7 @@ function ContentRow({ item, onStatusChange, onDelete }) {
       </div>
       <span className={`text-[10px] font-mono font-bold px-2.5 py-1 rounded-full border ${STATUS_STYLES[item.status]}`}>{item.status}</span>
 
-      {/* Quick status transitions */}
+      {/* Quick status transitions + edit */}
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {nextStatuses.map(ns => (
           <button
@@ -80,13 +80,22 @@ function ContentRow({ item, onStatusChange, onDelete }) {
             → {ns}
           </button>
         ))}
+        {onEdit && ['Lesson', 'Experiment', 'Quiz', 'Challenge', 'Course'].includes(item.type) && (
+          <button
+            onClick={() => onEdit(item)}
+            title="Open in Builder"
+            className="p-1 hover:text-cyan-400 text-[var(--color-muted)] cursor-pointer"
+          >
+            <LuExternalLink size={12} />
+          </button>
+        )}
         <button onClick={() => onDelete(item.id)} className="p-1 hover:text-rose-400 text-[var(--color-muted)] cursor-pointer"><LuTrash2 size={12} /></button>
       </div>
     </div>
   );
 }
 
-export default function ContentManagement() {
+export default function ContentManagement({ initialFilterType = 'All', onOpenLesson, onOpenQuiz, onOpenChallenge, onOpenBuilder }) {
   const [content, setContent] = useState([]);
   const [loading, setLoading] = useState(true);
 
@@ -94,16 +103,22 @@ export default function ContentManagement() {
     const fetchContent = async () => {
       try {
         const res = await apiFetch('/instructor/content');
-        if (res?.success) setContent(res.data.items || []);
+        if (res?.success && res.data.items?.length > 0) {
+          setContent(res.data.items);
+        } else {
+          // Fall back to local demo data when API returns empty
+          setContent(INITIAL_CONTENT);
+        }
       } catch (err) {
         console.error('Failed to fetch content:', err);
+        setContent(INITIAL_CONTENT);
       } finally {
         setLoading(false);
       }
     };
     fetchContent();
   }, []);
-  const [filterType, setFilterType] = useState('All');
+  const [filterType, setFilterType] = useState(initialFilterType);
   const [filterStatus, setFilterStatus] = useState('All');
   const [search, setSearch] = useState('');
 
@@ -126,6 +141,19 @@ export default function ContentManagement() {
   const handleDelete = (id) => {
     if (window.confirm('Delete this content item?')) {
       setContent(c => c.filter(x => x.id !== id));
+    }
+  };
+
+  const handleEdit = (item) => {
+    const t = item.type;
+    if (t === 'Lesson' || t === 'Experiment') {
+      onOpenLesson && onOpenLesson({ lessonId: item.id });
+    } else if (t === 'Quiz') {
+      onOpenQuiz && onOpenQuiz({ quizId: item.id });
+    } else if (t === 'Challenge') {
+      onOpenChallenge && onOpenChallenge({ challengeId: item.id });
+    } else if (t === 'Course') {
+      onOpenBuilder && onOpenBuilder({ id: item.id, title: item.title });
     }
   };
 
@@ -207,7 +235,7 @@ export default function ContentManagement() {
           </div>
         ) : (
           filtered.map(item => (
-            <ContentRow key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} />
+            <ContentRow key={item.id} item={item} onStatusChange={handleStatusChange} onDelete={handleDelete} onEdit={handleEdit} />
           ))
         )}
       </div>

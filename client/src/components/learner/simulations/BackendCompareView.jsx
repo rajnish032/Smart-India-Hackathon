@@ -6,7 +6,7 @@ import {
   LuDownload, LuChartBar, LuActivity, LuCode, LuHistory, LuX, LuChevronDown,
   LuTriangleAlert, LuStar,
 } from 'react-icons/lu';
-import { apiFetch } from '../../services/api';
+import { apiFetch } from '../../../services/api';
 
 const BACKENDS = [
   { id: 'qiskit_aer', label: 'Qiskit Aer', framework: 'qiskit', color: 'indigo', desc: 'High-performance local Aer simulator' },

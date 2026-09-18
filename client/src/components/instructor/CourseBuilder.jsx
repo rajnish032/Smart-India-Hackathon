@@ -5,8 +5,9 @@ import {
   LuBookOpen, LuPlus, LuGrip, LuTrash2, LuPencil, LuCheck, LuX,
   LuEye, LuUpload, LuDownload, LuChevronRight, LuChevronDown,
   LuFileText, LuFlaskConical, LuStar, LuZap, LuSettings, LuArrowUp, LuArrowDown,
-  LuGlobe, LuArchive, LuSave, LuPlay, LuCircleCheck,
+  LuGlobe, LuArchive, LuSave, LuPlay, LuCircleCheck, LuArrowLeft, LuExternalLink,
 } from 'react-icons/lu';
+import { apiFetch } from '../../services/api';
 
 const LESSON_TYPES = [
   { type: 'lesson', label: 'Lesson', icon: LuFileText, color: 'text-violet-400 bg-violet-500/10' },
@@ -23,9 +24,20 @@ const STATUS_CHIP = {
   Review: 'bg-amber-500/15 text-amber-400',
 };
 
-function LessonItem({ lesson, onDelete, onMoveUp, onMoveDown, isFirst, isLast }) {
+function LessonItem({ lesson, onDelete, onMoveUp, onMoveDown, isFirst, isLast, courseId, moduleId, onOpenLesson, onOpenQuiz, onOpenChallenge }) {
   const info = TYPE_INFO[lesson.type] || TYPE_INFO.lesson;
   const Icon = info.icon;
+
+  const handleEdit = () => {
+    if (lesson.type === 'quiz' && onOpenQuiz) {
+      onOpenQuiz({ courseId, moduleId, quizId: lesson.id });
+    } else if (lesson.type === 'challenge' && onOpenChallenge) {
+      onOpenChallenge({ courseId, moduleId, challengeId: lesson.id });
+    } else if (onOpenLesson) {
+      onOpenLesson({ courseId, moduleId, lessonId: lesson.id });
+    }
+  };
+
   return (
     <div className={`flex items-center gap-3 p-3 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] group hover:border-violet-500/30 transition-all`}>
       <LuGrip size={14} className="text-[var(--color-muted)] cursor-grab shrink-0" />
@@ -38,6 +50,7 @@ function LessonItem({ lesson, onDelete, onMoveUp, onMoveDown, isFirst, isLast })
       <div className="flex items-center gap-1 opacity-0 group-hover:opacity-100 transition-opacity">
         {!isFirst && <button onClick={onMoveUp} className="p-1 hover:text-violet-400 text-[var(--color-muted)] cursor-pointer transition-colors"><LuArrowUp size={12} /></button>}
         {!isLast && <button onClick={onMoveDown} className="p-1 hover:text-violet-400 text-[var(--color-muted)] cursor-pointer transition-colors"><LuArrowDown size={12} /></button>}
+        <button onClick={handleEdit} title="Edit in builder" className="p-1 hover:text-cyan-400 text-[var(--color-muted)] cursor-pointer transition-colors"><LuExternalLink size={12} /></button>
         <button onClick={onDelete} className="p-1 hover:text-rose-400 text-[var(--color-muted)] cursor-pointer transition-colors"><LuTrash2 size={12} /></button>
       </div>
     </div>
@@ -95,20 +108,26 @@ function AddLessonPanel({ onAdd }) {
   );
 }
 
-function ModuleBlock({ module, isActive, onSelect, onUpdate, onDeleteModule }) {
+function ModuleBlock({ module, isActive, onSelect, onUpdate, onDeleteModule, courseId, onOpenLesson, onOpenQuiz, onOpenChallenge }) {
   const [expanded, setExpanded] = useState(isActive);
   const [lessons, setLessons] = useState(module.lessons || []);
   const [editing, setEditing] = useState(false);
   const [title, setTitle] = useState(module.title);
+  const [completionRule, setCompletionRule] = useState(module.completionRule || 'All lessons');
 
-  const addLesson = (lesson) => setLessons(l => [...l, { ...lesson, order: l.length + 1 }]);
-  const deleteLesson = (id) => setLessons(l => l.filter(x => x.id !== id));
+  const updateLessons = (newLessons) => {
+    setLessons(newLessons);
+    onUpdate({ ...module, title, completionRule, lessons: newLessons });
+  };
+
+  const addLesson = (lesson) => updateLessons([...lessons, { ...lesson, order: lessons.length + 1 }]);
+  const deleteLesson = (id) => updateLessons(lessons.filter(x => x.id !== id));
   const moveLesson = (idx, dir) => {
     const arr = [...lessons];
     const target = idx + dir;
     if (target < 0 || target >= arr.length) return;
     [arr[idx], arr[target]] = [arr[target], arr[idx]];
-    setLessons(arr);
+    updateLessons(arr);
   };
 
   return (
@@ -120,7 +139,7 @@ function ModuleBlock({ module, isActive, onSelect, onUpdate, onDeleteModule }) {
           <input
             autoFocus value={title}
             onChange={e => setTitle(e.target.value)}
-            onBlur={() => { setEditing(false); onUpdate({ ...module, title }); }}
+            onBlur={() => { setEditing(false); onUpdate({ ...module, title, completionRule }); }}
             className="flex-1 bg-transparent text-xs font-bold text-[var(--color-text)] focus:outline-none border-b border-violet-500"
             onClick={e => e.stopPropagation()}
           />
@@ -128,7 +147,23 @@ function ModuleBlock({ module, isActive, onSelect, onUpdate, onDeleteModule }) {
           <span className="flex-1 text-xs font-bold text-[var(--color-text)] truncate">{title}</span>
         )}
         <span className={`text-[10px] font-mono px-2 py-0.5 rounded-full ${STATUS_CHIP[module.status] || STATUS_CHIP.Draft}`}>{module.status}</span>
-        <span className="text-[10px] font-mono text-[var(--color-muted)]">{lessons.length} items</span>
+        {editing ? (
+          <select
+            value={completionRule}
+            onChange={e => setCompletionRule(e.target.value)}
+            onClick={e => e.stopPropagation()}
+            onBlur={() => { setEditing(false); onUpdate({ ...module, title, completionRule }); }}
+            className="text-[10px] bg-[var(--color-background)] border border-[var(--color-border)] rounded px-1 py-0.5"
+          >
+            <option>All lessons</option>
+            <option>All lessons + quiz</option>
+            <option>All lessons + challenge</option>
+            <option>All lessons + quiz + challenge</option>
+            <option>At least 80% of lessons</option>
+          </select>
+        ) : (
+          <span className="text-[10px] font-mono text-[var(--color-muted)]">{lessons.length} items</span>
+        )}
         <button onClick={e => { e.stopPropagation(); setEditing(true); }} className="p-1 hover:text-violet-400 text-[var(--color-muted)] cursor-pointer transition-colors"><LuPencil size={12} /></button>
         <button onClick={e => { e.stopPropagation(); onDeleteModule(module.id); }} className="p-1 hover:text-rose-400 text-[var(--color-muted)] cursor-pointer transition-colors"><LuTrash2 size={12} /></button>
       </button>
@@ -142,6 +177,11 @@ function ModuleBlock({ module, isActive, onSelect, onUpdate, onDeleteModule }) {
               onMoveUp={() => moveLesson(i, -1)}
               onMoveDown={() => moveLesson(i, 1)}
               isFirst={i === 0} isLast={i === lessons.length - 1}
+              courseId={courseId}
+              moduleId={module.id}
+              onOpenLesson={onOpenLesson}
+              onOpenQuiz={onOpenQuiz}
+              onOpenChallenge={onOpenChallenge}
             />
           ))}
           <AddLessonPanel onAdd={addLesson} />
@@ -200,9 +240,9 @@ function AddModulePanel({ onAdd }) {
   );
 }
 
-export default function CourseBuilder({ course: initialCourse }) {
+export default function CourseBuilder({ course: initialCourse, courseId, onBack, onOpenLesson, onOpenQuiz, onOpenChallenge, onOpenPreview }) {
   const course = initialCourse || {
-    id: 'ic1', title: 'Quantum Fundamentals: From Bits to Qubits',
+    id: courseId || 'ic1', title: 'Quantum Fundamentals: From Bits to Qubits',
     status: 'Published', difficulty: 'Beginner',
     modules: [
       {
@@ -250,15 +290,30 @@ export default function CourseBuilder({ course: initialCourse }) {
     ],
   };
 
+  const [courseData, setCourseData] = useState(course);
   const [modules, setModules] = useState(course.modules || []);
   const [activeModuleId, setActiveModuleId] = useState(modules[0]?.id);
   const [courseStatus, setCourseStatus] = useState(course.status || 'Draft');
   const [completionReq, setCompletionReq] = useState('Complete all modules');
   const [saved, setSaved] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-  const handleSave = () => {
-    setSaved(true);
-    setTimeout(() => setSaved(false), 2000);
+  const handleSave = async () => {
+    setSaving(true);
+    try {
+      if (course.id && !course.id.startsWith('ic')) {
+        await apiFetch(`/instructor/courses/${course.id}`, {
+          method: 'PUT',
+          body: JSON.stringify({ ...courseData, status: courseStatus, modules }),
+        });
+      }
+    } catch (e) {
+      console.warn('Save course failed (offline?):', e);
+    } finally {
+      setSaving(false);
+      setSaved(true);
+      setTimeout(() => setSaved(false), 2000);
+    }
   };
 
   const totalLessons = modules.reduce((a, m) => a + (m.lessons?.length || 0), 0);
@@ -266,22 +321,44 @@ export default function CourseBuilder({ course: initialCourse }) {
 
   return (
     <div className="space-y-6 animate-fadeIn">
+      {/* Back nav */}
+      {onBack && (
+        <button
+          onClick={onBack}
+          className="inline-flex items-center gap-1.5 text-xs text-[var(--color-muted)] hover:text-violet-400 transition-colors cursor-pointer group"
+        >
+          <LuArrowLeft size={13} className="group-hover:-translate-x-0.5 transition-transform" />
+          Back to Courses
+        </button>
+      )}
       {/* Header */}
       <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
-        <div>
+        <div className="flex-1 w-full max-w-xl">
           <div className="flex items-center gap-2 mb-1">
             <LuBookOpen size={16} className="text-violet-400" />
             <span className="text-xs text-[var(--color-muted)] font-mono">Course Builder</span>
           </div>
-          <h2 className="text-xl font-bold text-[var(--color-text)]">{course.title}</h2>
-          <p className="text-xs text-[var(--color-muted)] mt-1">{modules.length} modules · {totalLessons} items · {publishedCount} published</p>
+          <input 
+            type="text" 
+            value={courseData.title} 
+            onChange={e => setCourseData({ ...courseData, title: e.target.value })}
+            placeholder="Course Title"
+            className="text-xl font-bold bg-transparent text-[var(--color-text)] focus:outline-none border-b border-transparent focus:border-violet-500 transition-colors w-full" 
+          />
+          <input 
+            type="text" 
+            value={courseData.description || ''} 
+            onChange={e => setCourseData({ ...courseData, description: e.target.value })}
+            placeholder="Short description..."
+            className="text-xs mt-1 bg-transparent text-[var(--color-muted)] focus:outline-none border-b border-transparent focus:border-violet-500 transition-colors w-full" 
+          />
         </div>
-        <div className="flex items-center gap-2 flex-wrap">
-          <button className="px-4 py-2 rounded-xl border border-[var(--color-border)] text-xs font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors cursor-pointer flex items-center gap-1.5">
+        <div className="flex items-center gap-2 flex-wrap shrink-0">
+          <button onClick={() => onOpenPreview && onOpenPreview({ ...courseData, modules })} className="px-4 py-2 rounded-xl border border-[var(--color-border)] text-xs font-semibold text-[var(--color-muted)] hover:text-[var(--color-text)] hover:bg-[var(--color-surface)] transition-colors cursor-pointer flex items-center gap-1.5">
             <LuEye size={13} /> Preview
           </button>
           <button onClick={handleSave} className={`px-4 py-2 rounded-xl text-xs font-bold cursor-pointer flex items-center gap-1.5 transition-all ${saved ? 'bg-emerald-600 text-white' : 'bg-[var(--color-surface)] border border-[var(--color-border)] text-[var(--color-muted)] hover:text-[var(--color-text)]'}`}>
-            {saved ? <><LuCheck size={13} /> Saved!</> : <><LuSave size={13} /> Save Draft</>}
+          {saving ? <><div className="w-3 h-3 border-2 border-white/40 border-t-white rounded-full animate-spin" /> Saving...</> : saved ? <><LuCheck size={13} /> Saved!</> : <><LuSave size={13} /> Save Draft</>}
           </button>
           <select
             value={courseStatus}
@@ -306,6 +383,10 @@ export default function CourseBuilder({ course: initialCourse }) {
               onSelect={() => setActiveModuleId(mod.id)}
               onUpdate={(updated) => setModules(ms => ms.map(m => m.id === updated.id ? updated : m))}
               onDeleteModule={(id) => setModules(ms => ms.filter(m => m.id !== id))}
+              courseId={course.id}
+              onOpenLesson={onOpenLesson}
+              onOpenQuiz={onOpenQuiz}
+              onOpenChallenge={onOpenChallenge}
             />
           ))}
           <AddModulePanel onAdd={(mod) => setModules(ms => [...ms, mod])} />
@@ -318,6 +399,24 @@ export default function CourseBuilder({ course: initialCourse }) {
               <LuSettings size={13} className="text-violet-400" /> Course Settings
             </h4>
             <div className="space-y-3">
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono text-[var(--color-muted)] uppercase tracking-wider">Category</label>
+                <select
+                  value={courseData.category || 'Foundations'} onChange={e => setCourseData({ ...courseData, category: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-xs text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                >
+                  <option>Foundations</option><option>Algorithms</option><option>QML</option><option>Cryptography</option>
+                </select>
+              </div>
+              <div className="space-y-1.5">
+                <label className="text-[10px] font-mono text-[var(--color-muted)] uppercase tracking-wider">Difficulty</label>
+                <select
+                  value={courseData.difficulty || 'Beginner'} onChange={e => setCourseData({ ...courseData, difficulty: e.target.value })}
+                  className="w-full px-3 py-2 rounded-xl bg-[var(--color-background)] border border-[var(--color-border)] text-xs text-[var(--color-text)] focus:outline-none focus:ring-2 focus:ring-violet-500/50"
+                >
+                  <option>Beginner</option><option>Intermediate</option><option>Advanced</option>
+                </select>
+              </div>
               <div className="space-y-1.5">
                 <label className="text-[10px] font-mono text-[var(--color-muted)] uppercase tracking-wider">Status</label>
                 <div className={`text-xs font-bold px-3 py-1.5 rounded-lg ${STATUS_CHIP[courseStatus] || STATUS_CHIP.Draft}`}>{courseStatus}</div>

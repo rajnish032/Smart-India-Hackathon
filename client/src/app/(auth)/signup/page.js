@@ -15,6 +15,7 @@ import {
   LuBookOpen,
   LuShieldAlert,
 } from 'react-icons/lu';
+import toast from 'react-hot-toast';
 
 export default function SignupPage() {
   const router = useRouter();
@@ -51,17 +52,23 @@ export default function SignupPage() {
     e.preventDefault();
 
     if (!formData.name || !formData.email || !formData.password) {
-      setLocalError('All fields are required.');
+      const msg = 'All fields are required.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     if (formData.password !== formData.confirmPassword) {
-      setLocalError('Passwords do not match.');
+      const msg = 'Passwords do not match.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
     if (formData.password.length < 8) {
-      setLocalError('Password must be at least 8 characters long.');
+      const msg = 'Password must be at least 8 characters long.';
+      setLocalError(msg);
+      toast.error(msg);
       return;
     }
 
@@ -73,7 +80,10 @@ export default function SignupPage() {
     });
 
     if (result.success) {
+      toast.success(result.message || 'Verification code sent to your email!');
       router.push(`/verify-email?email=${encodeURIComponent(formData.email)}`);
+    } else {
+      toast.error(result.error || 'Registration failed. Please try again.');
     }
   };
 

@@ -5,7 +5,7 @@ import {
   LuCircuitBoard, LuPlus, LuTrash2, LuPencil, LuLoader, LuSearch, LuTag,
   LuCpu, LuCode, LuSave, LuX, LuPlay, LuCopy, LuCircleCheckBig, LuClock,
 } from 'react-icons/lu';
-import { apiFetch } from '../../services/api';
+import { apiFetch } from '../../../services/api';
 
 const FRAMEWORKS = ['qiskit', 'pennylane', 'cirq', 'qbraid'];
 const FRAMEWORK_COLORS = {

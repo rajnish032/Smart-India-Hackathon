@@ -7,7 +7,7 @@ import {
   LuCpu, LuZap, LuDatabase, LuGitCompare, LuDownload, LuX, LuCalendar,
   LuFlaskConical,
 } from 'react-icons/lu';
-import { apiFetch } from '../../services/api';
+import { apiFetch } from '../../../services/api';
 
 const BACKENDS = ['qiskit_aer', 'pennylane', 'cirq', 'qbraid'];
 const FRAMEWORKS = ['qiskit', 'pennylane', 'cirq', 'qbraid'];

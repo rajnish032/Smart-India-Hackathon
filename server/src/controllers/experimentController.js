@@ -31,20 +31,46 @@ function mockSimulationResult(circuitCode, backend, shots = 1024) {
 // ─── POST /api/learner/experiments ───────────────────────────────────────────
 export const createExperiment = async (req, res) => {
   try {
-    const { name, objective, hypothesis = '', tags = [] } = req.body;
+    const { name, objective, hypothesis = '', tags = [], circuitCode, backend, framework, parameters, observations, simulationRunId } = req.body;
     if (!name || !objective) {
       return res.status(400).json({ success: false, error: 'name and objective are required.' });
     }
-    const experiment = await prisma.experiment.create({
-      data: {
-        userId: req.user.id,
-        name: name.trim(),
-        objective: objective.trim(),
-        hypothesis: hypothesis.trim(),
-        tags: Array.isArray(tags) ? tags : [],
-        status: 'DRAFT',
-      },
-    });
+    const data = {
+      userId: req.user.id,
+      name: name.trim(),
+      objective: objective.trim(),
+      hypothesis: hypothesis.trim(),
+      tags: Array.isArray(tags) ? tags : [],
+      status: simulationRunId ? 'COMPLETED' : 'DRAFT',
+    };
+    if (circuitCode) data.circuitCode = circuitCode;
+    if (backend) data.backend = backend;
+    if (framework) data.framework = framework;
+    if (parameters) data.parameters = parameters;
+    if (observations) data.observations = observations;
+
+    const experiment = await prisma.experiment.create({ data });
+
+    // Link simulation run if provided
+    if (simulationRunId) {
+      const simRun = await prisma.simulationRun.findFirst({ where: { id: simulationRunId, userId: req.user.id } });
+      if (simRun) {
+        await prisma.simulationRun.update({ where: { id: simRun.id }, data: { experimentId: experiment.id } });
+        await prisma.experiment.update({
+          where: { id: experiment.id },
+          data: {
+            reproducibility: {
+              lastRunAt: new Date().toISOString(),
+              runId: simRun.id,
+              shots: simRun.shots,
+              backend: simRun.backend,
+              framework: simRun.framework,
+              seed: Math.floor(Math.random() * 99999),
+            }
+          }
+        });
+      }
+    }
     return res.status(201).json({ success: true, data: { experiment } });
   } catch (err) {
     console.error('createExperiment error:', err);
