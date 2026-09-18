@@ -1,4 +1,5 @@
 import prisma from '../config/db.js';
+import { recordLearnerWork } from '../services/learnerActivityService.js';
 
 // ─── GET /api/learner/circuits ────────────────────────────────────────────────
 export const listCircuits = async (req, res) => {
@@ -54,6 +55,15 @@ export const saveCircuit = async (req, res) => {
         isPublic,
       },
     });
+
+    // Automatically record work to update streak, XP, hours, and heatmap
+    await recordLearnerWork({
+      userId: req.user.id,
+      type: 'CIRCUIT',
+      description: `Constructed and saved quantum circuit: ${circuit.name}`,
+      xp: 30,
+      hours: 0.2,
+    }).catch(err => console.warn('Circuit work record warning:', err.message));
 
     return res.status(201).json({ success: true, data: { circuit } });
   } catch (err) {

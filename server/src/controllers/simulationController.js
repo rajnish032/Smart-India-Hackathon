@@ -1,4 +1,5 @@
 import prisma from '../config/db.js';
+import { recordLearnerWork } from '../services/learnerActivityService.js';
 
 const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8000';
 
@@ -138,6 +139,15 @@ export const rerunSimulation = async (req, res) => {
       },
     });
 
+    // Automatically record work to update streak, XP, hours, and heatmap
+    await recordLearnerWork({
+      userId: req.user.id,
+      type: 'SIMULATION',
+      description: `Ran quantum simulation on ${backend} (${newShots} shots)`,
+      xp: 25,
+      hours: 0.2,
+    }).catch(err => console.warn('Simulation work record warning:', err.message));
+
     return res.status(201).json({ success: true, message: 'Re-run completed.', data: { run: newRun } });
   } catch (err) {
     console.error('rerunSimulation error:', err);
@@ -211,6 +221,15 @@ export const compareBackends = async (req, res) => {
         summary,
       },
     });
+
+    // Automatically record work to update streak, XP, hours, and heatmap
+    await recordLearnerWork({
+      userId: req.user.id,
+      type: 'SIMULATION',
+      description: `Compared ${backends.length} quantum backends (${backends.join(', ')})`,
+      xp: 40,
+      hours: 0.3,
+    }).catch(err => console.warn('Compare work record warning:', err.message));
 
     return res.status(201).json({
       success: true,

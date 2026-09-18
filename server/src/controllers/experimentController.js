@@ -1,4 +1,5 @@
 import prisma from '../config/db.js';
+import { recordLearnerWork } from '../services/learnerActivityService.js';
 
 const AI_ENGINE_URL = process.env.AI_ENGINE_URL || 'http://localhost:8000';
 
@@ -228,6 +229,15 @@ export const runExperiment = async (req, res) => {
         },
       },
     });
+
+    // Record work to award XP and update streak & heatmap
+    await recordLearnerWork({
+      userId: req.user.id,
+      type: 'EXPERIMENT',
+      description: `Ran experiment: ${updatedExperiment.name}`,
+      xp: 25,
+      hours: 0.2,
+    }).catch(err => console.warn('Record experiment work warning:', err.message));
 
     return res.status(200).json({
       success: true,

@@ -4,6 +4,7 @@ import {
   getLearnerCourses,
   getCourseById,
   enrollCourse,
+  completeCourse,
   completeLesson,
   getLearnerProgress,
   getLearnerAchievements,
@@ -11,6 +12,9 @@ import {
   updateLearnerProfile,
   getTodayGoals,
   toggleGoal,
+  solveChallenge,
+  logLearnerActivity,
+  logStudyHeartbeat,
 } from '../controllers/learnerController.js';
 import {
   createExperiment,
@@ -52,6 +56,7 @@ router.get('/dashboard', getLearnerDashboard);
 router.get('/courses', getLearnerCourses);
 router.get('/courses/:courseId', getCourseById);
 router.post('/courses/:courseId/enroll', enrollCourse);
+router.post('/courses/:courseId/complete', completeCourse);
 
 // ─── Lessons ────────────────────────────────────────────────────────────────
 router.patch('/lessons/:lessonId/complete', completeLesson);
@@ -62,9 +67,14 @@ router.get('/progress', getLearnerProgress);
 // ─── Achievements ───────────────────────────────────────────────────────────
 router.get('/achievements', getLearnerAchievements);
 
-// ─── Profile ────────────────────────────────────────────────────────────────
+// ─── Profile & Work Activity ────────────────────────────────────────────────
 router.get('/profile', getLearnerProfile);
 router.patch('/profile', updateLearnerProfile);
+router.post('/activity/log', logLearnerActivity);
+router.post('/study-heartbeat', logStudyHeartbeat);
+
+// ─── Challenges ─────────────────────────────────────────────────────────────
+router.post('/challenges/:challengeId/solve', solveChallenge);
 
 // ─── Daily Goals ────────────────────────────────────────────────────────────
 router.get('/goals/today', getTodayGoals);
